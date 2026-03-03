@@ -1,0 +1,112 @@
+{
+  "common": {
+    "welcome": "आपले स्वागत आहे",
+    "login": "लॉगिन",
+    "register": "नोंदणी करा",
+    "logout": "लॉगआउट",
+    "home": "होम",
+    "dashboard": "डॅशबोर्ड",
+    "back": "मागे"
+  },
+  "auth": {
+    "phoneNumber": "फोन नंबर",
+    "enterPhone": "तुमचा फोन नंबर प्रविष्ट करा",
+    "password": "पासवर्ड",
+    "enterPassword": "तुमचा पासवर्ड प्रविष्ट करा",
+    "confirmPassword": "पासवर्ड पुष्टी करा",
+    "name": "पूर्ण नाव",
+    "enterName": "तुमचे पूर्ण नाव प्रविष्ट करा",
+    "role": "भूमिका",
+    "farmer": "शेतकरी",
+    "trader": "व्यापारी",
+    "transporter": "वाहतूकदार",
+    "transport": "वाहतूकदार",
+    "admin": "ॲडमिन",
+    "loginTitle": "तुमच्या खात्यात लॉगिन करा",
+    "registerTitle": "नवीन खाते तयार करा",
+    "noAccount": "खाते नाही?",
+    "hasAccount": "आधीच खाते आहे?",
+    "loginHere": "येथे लॉगिन करा",
+    "registerHere": "येथे नोंदणी करा",
+    "otpLogin": "OTP ने लॉगिन",
+    "sendOtp": "OTP पाठवा",
+    "verifyOtp": "OTP सत्यापित करा",
+    "enterOtp": "OTP प्रविष्ट करा",
+    "otpSent": "तुमच्या फोनवर OTP पाठवला",
+    "invalidCredentials": "चुकीचे क्रेडेंशियल्स",
+    "loginSuccess": "लॉगिन यशस्वी",
+    "registerSuccess": "नोंदणी यशस्वी",
+    "createAccount": "खाते तयार करा",
+    "resendOtp": "OTP पुन्हा पाठवा"
+  },
+  "home": {
+    "title": "सुदेशम ॲग्रो",
+    "subtitle": "शेतकरी, व्यापारी आणि वाहतूकदारांना जोडत आहे",
+    "heroText": "सुदेशम ॲग्रो हे शेतकरी आणि व्यापाऱ्यांमधील तुमचा डिजिटल सेतू आहे!"
+  },
+  "farmer": {
+    "myCrops": "माझी पिके",
+    "dashboard": {
+      "title": "शेतकरी डॅशबोर्ड",
+      "welcome": "शेतकरी डॅशबोर्डवर स्वागत आहे",
+      "description": "आपली पिके व्यवस्थापित करा, ऑर्डर पहा आणि कमाई ट्रॅक करा"
+    },
+    "crops": {
+      "addNew": "नवीन पीक जोडा"
+    },
+    "orders": {
+      "title": "माझे ऑर्डर"
+    }
+  },
+  "trader": {
+    "dashboard": {
+      "title": "व्यापारी डॅशबोर्ड",
+      "welcome": "व्यापारी डॅशबोर्डवर स्वागत आहे",
+      "description": "पिके पहा, तुमचे ऑर्डर आणि प्रस्ताव व्यवस्थापित करा"
+    },
+    "browse": {
+      "title": "पिके पहा"
+    },
+    "orders": {
+      "title": "माझे ऑर्डर"
+    },
+    "proposals": {
+      "title": "माझे प्रस्ताव"
+    }
+  },
+  "transporter": {
+    "dashboard": {
+      "title": "वाहतूकदार डॅशबोर्ड",
+      "welcome": "वाहतूक डॅशबोर्डवर स्वागत आहे",
+      "description": "तुमची वाहने आणि डिलिव्हरी व्यवस्थापित करा"
+    },
+    "orders": {
+      "title": "उपलब्ध ऑर्डर"
+    },
+    "deliveries": {
+      "title": "माझ्या डिलिव्हरी"
+    },
+    "vehicles": {
+      "title": "माझी वाहने"
+    }
+  },
+  "admin": {
+    "dashboard": {
+      "title": "ॲडमिन डॅशबोर्ड"
+    }
+  },
+  "weather": {
+    "title": "हवामान अंदाज"
+  },
+  "validation": {
+    "required": "हे फील्ड आवश्यक आहे",
+    "invalidPhone": "अवैध फोन नंबर",
+    "passwordMismatch": "पासवर्ड जुळत नाहीत",
+    "invalidOtp": "अवैध OTP"
+  },
+  "messages": {
+    "error": "काहीतरी चूक झाली",
+    "tryAgain": "कृपया पुन्हा प्रयत्न करा"
+  }
+}
+

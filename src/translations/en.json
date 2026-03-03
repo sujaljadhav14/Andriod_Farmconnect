@@ -1,0 +1,146 @@
+﻿{
+  "common": {
+    "welcome": "Welcome to",
+    "login": "Login",
+    "register": "Register",
+    "logout": "Logout",
+    "home": "Home",
+    "dashboard": "Dashboard",
+    "profile": "Profile",
+    "settings": "Settings",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "view": "View",
+    "submit": "Submit",
+    "loading": "Loading...",
+    "success": "Success",
+    "error": "Error",
+    "yes": "Yes",
+    "no": "No",
+    "or": "OR",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "search": "Search",
+    "filter": "Filter",
+    "all": "All"
+  },
+  "auth": {
+    "phoneNumber": "Phone Number",
+    "enterPhone": "Enter your phone number",
+    "password": "Password",
+    "enterPassword": "Enter your password",
+    "confirmPassword": "Confirm Password",
+    "name": "Full Name",
+    "enterName": "Enter your full name",
+    "role": "Role",
+    "selectRole": "Select Role",
+    "farmer": "Farmer",
+    "trader": "Trader",
+    "transporter": "Transporter",
+    "transport": "Transporter",
+    "admin": "Admin",
+    "loginTitle": "Login to Your Account",
+    "registerTitle": "Create New Account",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?",
+    "loginHere": "Login here",
+    "registerHere": "Register here",
+    "otpLogin": "Login with OTP",
+    "passwordLogin": "Login with Password",
+    "sendOtp": "Send OTP",
+    "verifyOtp": "Verify OTP",
+    "enterOtp": "Enter OTP",
+    "otpSent": "OTP sent to your phone",
+    "invalidCredentials": "Invalid credentials",
+    "loginSuccess": "Login successful",
+    "registerSuccess": "Registration successful",
+    "createAccount": "Create Account",
+    "registering": "Registering...",
+    "loggingIn": "Logging in...",
+    "sendingOtp": "Sending OTP...",
+    "verifying": "Verifying...",
+    "resendOtp": "Resend OTP",
+    "didntReceiveOtp": "Didn't receive OTP?"
+  },
+  "home": {
+    "title": "FarmConnect",
+    "subtitle": "Connecting Farmers, Traders & Transporters",
+    "heroText": "FarmConnect is your digital bridge between farmers and traders! Our goal is to ensure fair pricing, safe transactions, and faster payments while empowering farmers across rural areas."
+  },
+  "farmer": {
+    "myCrops": "My Crops",
+    "dashboard": {
+      "title": "Farmer Dashboard",
+      "welcome": "Welcome to Farmer Dashboard",
+      "description": "Manage your crops, view orders, and track earnings all in one place"
+    },
+    "crops": {
+      "addNew": "Add New Crop"
+    },
+    "orders": {
+      "title": "My Orders"
+    }
+  },
+  "trader": {
+    "dashboard": {
+      "title": "Trader Dashboard",
+      "welcome": "Welcome to Trader Dashboard",
+      "description": "Browse crops, manage your orders and proposals"
+    },
+    "browse": {
+      "title": "Browse Crops"
+    },
+    "orders": {
+      "title": "My Orders"
+    },
+    "proposals": {
+      "title": "My Proposals"
+    }
+  },
+  "transporter": {
+    "dashboard": {
+      "title": "Transporter Dashboard",
+      "welcome": "Welcome to Transport Dashboard",
+      "description": "Manage your vehicles and deliveries"
+    },
+    "orders": {
+      "title": "Available Orders"
+    },
+    "deliveries": {
+      "title": "My Deliveries"
+    },
+    "vehicles": {
+      "title": "My Vehicles"
+    }
+  },
+  "admin": {
+    "dashboard": {
+      "title": "Admin Dashboard"
+    }
+  },
+  "weather": {
+    "title": "Weather Forecast"
+  },
+  "validation": {
+    "required": "This field is required",
+    "invalidPhone": "Invalid phone number",
+    "invalidEmail": "Invalid email address",
+    "passwordMismatch": "Passwords do not match",
+    "invalidOtp": "Invalid OTP",
+    "otpExpired": "OTP has expired"
+  },
+  "messages": {
+    "saved": "Saved successfully",
+    "updated": "Updated successfully",
+    "deleted": "Deleted successfully",
+    "error": "Something went wrong",
+    "tryAgain": "Please try again",
+    "networkError": "Network error. Check your connection",
+    "sessionExpired": "Session expired. Please login again"
+  }
+}
+
+

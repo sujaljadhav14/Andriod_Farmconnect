@@ -1,0 +1,112 @@
+{
+  "common": {
+    "welcome": "आपका स्वागत है",
+    "login": "लॉगिन",
+    "register": "रजिस्टर",
+    "logout": "लॉगआउट",
+    "home": "होम",
+    "dashboard": "डैशबोर्ड",
+    "back": "वापस"
+  },
+  "auth": {
+    "phoneNumber": "फोन नंबर",
+    "enterPhone": "अपना फोन नंबर दर्ज करें",
+    "password": "पासवर्ड",
+    "enterPassword": "अपना पासवर्ड दर्ज करें",
+    "confirmPassword": "पासवर्ड की पुष्टि करें",
+    "name": "पूरा नाम",
+    "enterName": "अपना पूरा नाम दर्ज करें",
+    "role": "भूमिका",
+    "farmer": "किसान",
+    "trader": "व्यापारी",
+    "transporter": "ट्रांसपोर्टर",
+    "transport": "ट्रांसपोर्टर",
+    "admin": "एडमिन",
+    "loginTitle": "अपने खाते में लॉगिन करें",
+    "registerTitle": "नया खाता बनाएं",
+    "noAccount": "खाता नहीं है?",
+    "hasAccount": "पहले से खाता है?",
+    "loginHere": "यहाँ लॉगिन करें",
+    "registerHere": "यहाँ रजिस्टर करें",
+    "otpLogin": "OTP से लॉगिन",
+    "sendOtp": "OTP भेजें",
+    "verifyOtp": "OTP सत्यापित करें",
+    "enterOtp": "OTP दर्ज करें",
+    "otpSent": "आपके फ़ोन पर OTP भेजा गया",
+    "invalidCredentials": "गलत क्रेडेंशियल्स",
+    "loginSuccess": "लॉगिन सफल",
+    "registerSuccess": "रजिस्ट्रेशन सफल",
+    "createAccount": "खाता बनाएं",
+    "resendOtp": "OTP फिर से भेजें"
+  },
+  "home": {
+    "title": "सुदेशम एग्रो",
+    "subtitle": "किसानों, व्यापारियों और ट्रांसपोर्टरों को जोड़ना",
+    "heroText": "सुदेशम एग्रो किसानों और व्यापारियों के बीच आपका डिजिटल पुल है!"
+  },
+  "farmer": {
+    "myCrops": "मेरी फसलें",
+    "dashboard": {
+      "title": "किसान डैशबोर्ड",
+      "welcome": "किसान डैशबोर्ड में आपका स्वागत है",
+      "description": "अपनी फसलों का प्रबंधन करें, ऑर्डर देखें और कमाई ट्रैक करें"
+    },
+    "crops": {
+      "addNew": "नई फसल जोड़ें"
+    },
+    "orders": {
+      "title": "मेरे ऑर्डर"
+    }
+  },
+  "trader": {
+    "dashboard": {
+      "title": "व्यापारी डैशबोर्ड",
+      "welcome": "व्यापारी डैशबोर्ड में आपका स्वागत है",
+      "description": "फसलें देखें, अपने ऑर्डर और प्रस्ताव प्रबंधित करें"
+    },
+    "browse": {
+      "title": "फसलें देखें"
+    },
+    "orders": {
+      "title": "मेरे ऑर्डर"
+    },
+    "proposals": {
+      "title": "मेरे प्रस्ताव"
+    }
+  },
+  "transporter": {
+    "dashboard": {
+      "title": "ट्रांसपोर्टर डैशबोर्ड",
+      "welcome": "ट्रांसपोर्ट डैशबोर्ड में आपका स्वागत है",
+      "description": "अपने वाहन और डिलीवरी प्रबंधित करें"
+    },
+    "orders": {
+      "title": "उपलब्ध ऑर्डर"
+    },
+    "deliveries": {
+      "title": "मेरी डिलीवरी"
+    },
+    "vehicles": {
+      "title": "मेरे वाहन"
+    }
+  },
+  "admin": {
+    "dashboard": {
+      "title": "एडमिन डैशबोर्ड"
+    }
+  },
+  "weather": {
+    "title": "मौसम पूर्वानुमान"
+  },
+  "validation": {
+    "required": "यह फ़ील्ड आवश्यक है",
+    "invalidPhone": "अमान्य फोन नंबर",
+    "passwordMismatch": "पासवर्ड मेल नहीं खाते",
+    "invalidOtp": "अमान्य OTP"
+  },
+  "messages": {
+    "error": "कुछ गलत हो गया",
+    "tryAgain": "कृपया फिर से प्रयास करें"
+  }
+}
+

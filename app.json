@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "FarmConnect",
+    "slug": "farmconnect-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#2E7D32"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.farmconnect.app"
+    },
+    "android": {
+      "package": "com.farmconnect.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#2E7D32"
+      }
+    },
+    "newArchEnabled": true,
+    "plugins": [
+      "expo-asset",
+      "expo-font"
+    ]
+  }
+}
+
