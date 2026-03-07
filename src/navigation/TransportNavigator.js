@@ -1,14 +1,56 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
 
-import TransportDashboardScreen from '../screens/transport/TransportDashboardScreen';
+// Import the new transport screens
+import {
+  TransportDashboard,
+  TransportBooking,
+  TrackingScreen,
+  DriverDetails
+} from '../transport';
+
+// Keep existing screens for other tabs
 import AvailableOrdersScreen from '../screens/transport/AvailableOrdersScreen';
 import MyDeliveriesScreen from '../screens/transport/MyDeliveriesScreen';
 import VehicleManagementScreen from '../screens/transport/VehicleManagementScreen';
 
 const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
+
+const DashboardStack = () => {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: '#1565C0' },
+        headerTintColor: Colors.white,
+        headerTitleStyle: { fontWeight: '600' },
+      }}>
+      <Stack.Screen
+        name="DashboardMain"
+        component={TransportDashboard}
+        options={{ title: 'Transport Dashboard' }}
+      />
+      <Stack.Screen
+        name="TransportBooking"
+        component={TransportBooking}
+        options={{ title: 'Book Transport' }}
+      />
+      <Stack.Screen
+        name="Tracking"
+        component={TrackingScreen}
+        options={{ title: 'Live Tracking' }}
+      />
+      <Stack.Screen
+        name="DriverDetails"
+        component={DriverDetails}
+        options={{ title: 'Driver Profile' }}
+      />
+    </Stack.Navigator>
+  );
+};
 
 const TransportNavigator = () => {
   return (
@@ -30,10 +72,10 @@ const TransportNavigator = () => {
       }}>
       <Tab.Screen
         name="Dashboard"
-        component={TransportDashboardScreen}
+        component={DashboardStack}
         options={{
+          headerShown: false,
           tabBarLabel: 'Dashboard',
-          headerTitle: 'Transport Dashboard',
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="dashboard" size={size} color={color} />
           ),
