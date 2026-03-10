@@ -24,7 +24,7 @@ const TraderDashboardScreen = ({ navigation }) => {
     {
       title: t('trader.dashboard.browseCrops'),
       description: t('trader.dashboard.browseCropsDescription'),
-      icon: 'clipboard-check',
+      icon: 'assignment-turned-in',
       color: '#2E7D32',
       screen: 'BrowseCrops',
     },
@@ -52,7 +52,7 @@ const TraderDashboardScreen = ({ navigation }) => {
     {
       title: t('trader.dashboard.marketAnalytics'),
       description: t('trader.dashboard.marketAnalyticsDescription'),
-      icon: 'bar-chart',
+      icon: 'show_chart',
       color: '#6A1B9A',
       screen: 'Analytics',
     },
