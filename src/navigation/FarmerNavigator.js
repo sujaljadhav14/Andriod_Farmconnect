@@ -9,6 +9,11 @@ import MyCropsScreen from '../screens/farmer/MyCropsScreen';
 import AddCropScreen from '../screens/farmer/AddCropScreen';
 import MyOrdersScreen from '../screens/farmer/MyOrdersScreen';
 import WeatherScreen from '../screens/farmer/WeatherScreen';
+import BankDetailsScreen from '../screens/farmer/BankDetailsScreen';
+import MarketPricesScreen from '../screens/farmer/MarketPricesScreen';
+import KYCScreen from '../screens/farmer/KYCScreen';
+import CommunityScreen from '../screens/farmer/CommunityScreen';
+import CalendarScreen from '../screens/farmer/CalendarScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -23,6 +28,14 @@ const FarmerHomeStack = () => {
       }}>
       <Stack.Screen name="Dashboard" component={FarmerDashboardScreen} options={{ title: 'Farmer Dashboard' }} />
       <Stack.Screen name="AddCrop" component={AddCropScreen} options={{ title: 'Add New Crop' }} />
+      <Stack.Screen name="MyCrops" component={MyCropsScreen} options={{ title: 'My Crops' }} />
+      <Stack.Screen name="MyOrders" component={MyOrdersScreen} options={{ title: 'My Orders' }} />
+      <Stack.Screen name="Weather" component={WeatherScreen} options={{ title: 'Weather' }} />
+      <Stack.Screen name="MarketPrices" component={MarketPricesScreen} options={{ title: 'Market Prices' }} />
+      <Stack.Screen name="BankDetails" component={BankDetailsScreen} options={{ title: 'Bank Details' }} />
+      <Stack.Screen name="KYC" component={KYCScreen} options={{ title: 'KYC Verification' }} />
+      <Stack.Screen name="Community" component={CommunityScreen} options={{ title: 'Community' }} />
+      <Stack.Screen name="Calendar" component={CalendarScreen} options={{ title: 'Farm Calendar' }} />
     </Stack.Navigator>
   );
 };
