@@ -1,4 +1,4 @@
-﻿{
+{
   "common": {
     "welcome": "Welcome to",
     "login": "Login",
@@ -233,5 +233,3 @@
     "sessionExpired": "Session expired. Please login again"
   }
 }
-
-
