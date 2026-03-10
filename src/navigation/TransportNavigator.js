@@ -34,6 +34,21 @@ const DashboardStack = () => {
         options={{ title: 'Transport Dashboard' }}
       />
       <Stack.Screen
+        name="AvailableOrders"
+        component={AvailableOrdersScreen}
+        options={{ title: 'Available Orders' }}
+      />
+      <Stack.Screen
+        name="MyDeliveries"
+        component={MyDeliveriesScreen}
+        options={{ title: 'My Deliveries' }}
+      />
+      <Stack.Screen
+        name="Vehicles"
+        component={VehicleManagementScreen}
+        options={{ title: 'My Vehicles' }}
+      />
+      <Stack.Screen
         name="TransportBooking"
         component={TransportBooking}
         options={{ title: 'Book Transport' }}
@@ -47,6 +62,37 @@ const DashboardStack = () => {
         name="DriverDetails"
         component={DriverDetails}
         options={{ title: 'Driver Profile' }}
+      />
+      {/* Add placeholder screens for other features */}
+      <Stack.Screen
+        name="KYC"
+        component={VehicleManagementScreen} // Placeholder
+        options={{ title: 'KYC Verification' }}
+      />
+      <Stack.Screen
+        name="DeliveryHistory"
+        component={VehicleManagementScreen} // Placeholder
+        options={{ title: 'Delivery History' }}
+      />
+      <Stack.Screen
+        name="RoutePlanning"
+        component={VehicleManagementScreen} // Placeholder
+        options={{ title: 'Route Planning' }}
+      />
+      <Stack.Screen
+        name="Earnings"
+        component={VehicleManagementScreen} // Placeholder
+        options={{ title: 'Earnings' }}
+      />
+      <Stack.Screen
+        name="Schedule"
+        component={VehicleManagementScreen} // Placeholder
+        options={{ title: 'Schedule Management' }}
+      />
+      <Stack.Screen
+        name="Support"
+        component={VehicleManagementScreen} // Placeholder
+        options={{ title: 'Support' }}
       />
     </Stack.Navigator>
   );
