@@ -9,6 +9,10 @@ import BrowseCropsScreen from '../screens/trader/BrowseCropsScreen';
 import CropDetailScreen from '../screens/trader/CropDetailScreen';
 import MyOrdersScreen from '../screens/trader/MyOrdersScreen';
 import MyProposalsScreen from '../screens/trader/MyProposalsScreen';
+import KYCScreen from '../screens/trader/KYCScreen';
+import PaymentsScreen from '../screens/trader/PaymentsScreen';
+import AnalyticsScreen from '../screens/trader/AnalyticsScreen';
+import FarmerNetworkScreen from '../screens/trader/FarmerNetworkScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -23,6 +27,26 @@ const BrowseStack = () => {
       }}>
       <Stack.Screen name="BrowseList" component={BrowseCropsScreen} options={{ title: 'Browse Crops' }} />
       <Stack.Screen name="CropDetail" component={CropDetailScreen} options={{ title: 'Crop Details' }} />
+    </Stack.Navigator>
+  );
+};
+
+const DashboardStack = () => {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: '#E65100' },
+        headerTintColor: Colors.white,
+        headerTitleStyle: { fontWeight: '600' },
+      }}>
+      <Stack.Screen name="DashboardMain" component={TraderDashboardScreen} options={{ title: 'Trader Dashboard' }} />
+      <Stack.Screen name="KYC" component={KYCScreen} options={{ title: 'KYC Verification' }} />
+      <Stack.Screen name="BrowseCrops" component={BrowseCropsScreen} options={{ title: 'Browse Crops' }} />
+      <Stack.Screen name="MyProposals" component={MyProposalsScreen} options={{ title: 'My Proposals' }} />
+      <Stack.Screen name="MyOrders" component={MyOrdersScreen} options={{ title: 'My Orders' }} />
+      <Stack.Screen name="Payments" component={PaymentsScreen} options={{ title: 'Payments' }} />
+      <Stack.Screen name="Analytics" component={AnalyticsScreen} options={{ title: 'Market Analytics' }} />
+      <Stack.Screen name="FarmerNetwork" component={FarmerNetworkScreen} options={{ title: 'Farmer Network' }} />
     </Stack.Navigator>
   );
 };
@@ -45,13 +69,10 @@ const TraderNavigator = () => {
       }}>
       <Tab.Screen
         name="Dashboard"
-        component={TraderDashboardScreen}
+        component={DashboardStack}
         options={{
           tabBarLabel: 'Dashboard',
-          headerShown: true,
-          headerTitle: 'Trader Dashboard',
-          headerStyle: { backgroundColor: '#E65100' },
-          headerTintColor: Colors.white,
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="dashboard" size={size} color={color} />
           ),

@@ -128,7 +128,28 @@
     "dashboard": {
       "title": "Trader Dashboard",
       "welcome": "Welcome to Trader Dashboard",
-      "description": "Browse crops, manage your orders and proposals"
+      "description": "Browse crops, manage your orders and proposals",
+      "kycVerification": "KYC Verification",
+      "kycVerificationDescription": "Complete your KYC verification",
+      "verifyKYC": "Verify KYC",
+      "browseCrops": "Browse Crops",
+      "browseCropsDescription": "Find crops from farmers",
+      "browseNow": "Browse Now",
+      "myProposals": "My Proposals",
+      "myProposalsDescription": "View and manage your proposals",
+      "viewProposals": "View Proposals",
+      "myOrders": "My Orders",
+      "myOrdersDescription": "Track your orders and payments",
+      "trackOrders": "Track Orders",
+      "payments": "Payments",
+      "paymentsDescription": "Manage your payments and transactions",
+      "managePayments": "Manage Payments",
+      "marketAnalytics": "Market Analytics",
+      "marketAnalyticsDescription": "View market trends and analytics",
+      "viewAnalytics": "View Analytics",
+      "farmerNetwork": "Farmer Network",
+      "farmerNetworkDescription": "Connect with farmers",
+      "connectNow": "Connect Now"
     },
     "browse": {
       "title": "Browse Crops"
