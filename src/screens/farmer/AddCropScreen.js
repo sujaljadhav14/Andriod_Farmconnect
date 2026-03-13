@@ -21,13 +21,46 @@ const AddCropScreen = ({ navigation }) => {
   const [price, setPrice] = useState('');
   const [quality, setQuality] = useState('');
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+
+  if (!name || !category || !quantity || !price || !quality) {
+    Alert.alert("Error", "Please fill all fields");
+    return;
+  }
+
+  try {
+
+    const response = await fetch("http://192.168.1.103:5050/addCrop", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        cropName: name,
+        category: category,
+        quantity: Number(quantity),
+        price: Number(price),
+        qualityGrade: quality,
+        farmerId: "demoFarmer1"
+      })
+    });
+
+const text = await response.text();
+console.log("SERVER RESPONSE:", text);
+
+const data = text ? JSON.parse(text) : {};
     Alert.alert(
-      'Crop Added (Demo)',
-      `${name || 'Unnamed'} - ${quantity}kg at \u20B9${price}/kg\nThis is a demo. No data is saved.`,
-      [{ text: 'OK', onPress: () => navigation.goBack() }]
+      "Success",
+      "Crop added successfully",
+      [{ text: "OK", onPress: () => navigation.goBack() }]
     );
-  };
+
+  } catch (error) {
+    console.log(error);
+    Alert.alert("Error", "Failed to add crop");
+  }
+
+};
 
   return (
     <ScrollView style={styles.container}>
