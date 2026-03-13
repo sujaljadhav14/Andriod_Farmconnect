@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
+import { useAuth } from '../context/AuthContext';
 
 const roles = [
   {
@@ -38,12 +39,28 @@ const roles = [
 ];
 
 const RolePickerScreen = ({ navigation }) => {
+  const { logout } = useAuth();
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <MaterialIcons name="eco" size={48} color={Colors.white} />
-          <Text style={styles.title}>FarmConnect</Text>
+          <View style={styles.headerTopRow}>
+            <View style={styles.brandRow}>
+              <MaterialIcons name="eco" size={40} color={Colors.white} />
+              <Text style={styles.title}>FarmConnect</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.logoutButton}
+              activeOpacity={0.8}
+              onPress={() => {
+                logout();
+                navigation.replace('Auth');
+              }}
+            >
+              <Text style={styles.logoutText}>Logout</Text>
+            </TouchableOpacity>
+          </View>
           <Text style={styles.subtitle}>
             Connecting Farmers, Traders & Transporters
           </Text>
@@ -52,7 +69,7 @@ const RolePickerScreen = ({ navigation }) => {
         <View style={styles.content}>
           <Text style={styles.sectionTitle}>Choose your role to explore</Text>
           <Text style={styles.sectionSubtitle}>
-            No login required - just pick a role to preview the app
+            Pick a role to continue through the app.
           </Text>
 
           {roles.map((role) => (
@@ -75,7 +92,7 @@ const RolePickerScreen = ({ navigation }) => {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            Development Preview - Authentication Disabled
+            Logged in as {user?.fullName ?? 'Guest'} ({user?.role ?? 'No role'})
           </Text>
         </View>
       </ScrollView>
@@ -96,15 +113,23 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 40,
     paddingHorizontal: 24,
-    alignItems: 'center',
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
     color: Colors.white,
-    marginTop: 12,
+    marginLeft: 12,
   },
   subtitle: {
     fontSize: 15,
@@ -112,6 +137,17 @@ const styles = StyleSheet.create({
     opacity: 0.9,
     marginTop: 8,
     textAlign: 'center',
+  },
+  logoutButton: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+  },
+  logoutText: {
+    color: Colors.white,
+    fontWeight: '700',
+    fontSize: 13,
   },
   content: {
     padding: 24,
