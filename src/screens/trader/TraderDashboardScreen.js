@@ -1,17 +1,109 @@
-import React from 'react';
+/**
+ * Trader Dashboard Screen
+ * Shows trader stats and quick navigation
+ * NO DEMO DATA - All data from real backend
+ */
+
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  RefreshControl,
 } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Colors } from '../../constants/colors';
+import Colors from '../../constants/colors';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuth } from '../../context/AuthContext';
+import proposalService from '../../services/proposalService';
+import cropService from '../../services/cropService';
+import apiService from '../../services/apiService';
+import { API_ENDPOINTS } from '../../config/api';
+import { formatCurrency } from '../../utils/formatters';
 
 const TraderDashboardScreen = ({ navigation }) => {
   const { t } = useLanguage();
+  const { user } = useAuth();
+  const isFocused = useIsFocused();
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [stats, setStats] = useState({
+    pendingProposals: 0,
+    acceptedProposals: 0,
+    activeOrders: 0,
+    completedOrders: 0,
+    totalSpent: 0,
+    availableCrops: 0,
+  });
+
+  const loadDashboardData = useCallback(async (showLoader = true) => {
+    if (showLoader) setLoading(true);
+
+    try {
+      // Fetch data in parallel
+      const [proposalStats, orders, availableCrops] = await Promise.allSettled([
+        proposalService.getProposalStats().catch(() => null),
+        apiService.get(API_ENDPOINTS.ORDERS.TRADER_ORDERS).catch(() => ({ orders: [] })),
+        cropService.getAvailableCrops({}).catch(() => ({ crops: [] })),
+      ]);
+
+      // Process proposal stats
+      const proposalData = proposalStats.status === 'fulfilled' && proposalStats.value
+        ? proposalStats.value.stats || proposalStats.value
+        : {};
+
+      // Process orders
+      const ordersData = orders.status === 'fulfilled' && orders.value
+        ? (orders.value.orders || orders.value.data || [])
+        : [];
+
+      const activeOrders = ordersData.filter(o =>
+        !['Completed', 'Cancelled', 'Delivered'].includes(o.status)
+      ).length;
+
+      const completedOrders = ordersData.filter(o =>
+        ['Completed', 'Delivered'].includes(o.status)
+      ).length;
+
+      // Calculate total spent
+      const totalSpent = ordersData
+        .filter(o => ['Completed', 'Delivered'].includes(o.status))
+        .reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+
+      // Process available crops count
+      const availableCropsData = availableCrops.status === 'fulfilled' && availableCrops.value
+        ? (availableCrops.value.crops || availableCrops.value.data || [])
+        : [];
+
+      setStats({
+        pendingProposals: proposalData.pending || 0,
+        acceptedProposals: proposalData.accepted || 0,
+        activeOrders,
+        completedOrders,
+        totalSpent,
+        availableCrops: availableCropsData.length,
+      });
+    } catch (err) {
+      console.error('Failed to load dashboard data:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isFocused) {
+      loadDashboardData();
+    }
+  }, [isFocused, loadDashboardData]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadDashboardData(false);
+  }, [loadDashboardData]);
 
   const featureCards = [
     {
@@ -65,17 +157,126 @@ const TraderDashboardScreen = ({ navigation }) => {
     },
   ];
 
+  const getActionButtonText = (title) => {
+    if (title === t('trader.dashboard.kycVerification')) return t('trader.dashboard.verifyKYC');
+    if (title === t('trader.dashboard.browseCrops')) return t('trader.dashboard.browseNow');
+    if (title === t('trader.dashboard.myProposals')) return t('trader.dashboard.viewProposals');
+    if (title === t('trader.dashboard.myOrders')) return t('trader.dashboard.trackOrders');
+    if (title === t('trader.dashboard.payments')) return t('trader.dashboard.managePayments');
+    if (title === t('trader.dashboard.marketAnalytics')) return t('trader.dashboard.viewAnalytics');
+    return t('trader.dashboard.connectNow');
+  };
+
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#E65100']} />
+      }
+    >
       {/* Welcome Section */}
       <View style={styles.welcomeSection}>
-        <Text style={styles.welcomeTitle}>{t('trader.dashboard.title')}</Text>
+        <Text style={styles.welcomeTitle}>
+          {t('trader.dashboard.title')}{user?.name ? `, ${user.name}` : ''}
+        </Text>
         <Text style={styles.welcomeDescription}>
           {t('trader.dashboard.description')}
         </Text>
       </View>
 
+      {/* Stats Cards */}
+      <View style={styles.statsContainer}>
+        <View style={styles.statsRow}>
+          <TouchableOpacity
+            style={[styles.statCard, { backgroundColor: '#FFF3E0' }]}
+            onPress={() => navigation.navigate('MyProposals')}
+          >
+            <MaterialIcons name="send" size={24} color="#E65100" />
+            <Text style={styles.statValue}>{stats.pendingProposals}</Text>
+            <Text style={styles.statLabel}>Pending Proposals</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.statCard, { backgroundColor: '#E8F5E9' }]}
+            onPress={() => navigation.navigate('MyOrders')}
+          >
+            <MaterialIcons name="check-circle" size={24} color="#2E7D32" />
+            <Text style={styles.statValue}>{stats.activeOrders}</Text>
+            <Text style={styles.statLabel}>Active Orders</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.statsRow}>
+          <TouchableOpacity
+            style={[styles.statCard, { backgroundColor: '#E3F2FD' }]}
+            onPress={() => navigation.navigate('BrowseCrops')}
+          >
+            <MaterialIcons name="agriculture" size={24} color="#1565C0" />
+            <Text style={styles.statValue}>{stats.availableCrops}</Text>
+            <Text style={styles.statLabel}>Available Crops</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.statCard, { backgroundColor: '#F3E5F5' }]}
+            onPress={() => navigation.navigate('Payments')}
+          >
+            <MaterialIcons name="account-balance-wallet" size={24} color="#6A1B9A" />
+            <Text style={styles.statValue}>{formatCurrency(stats.totalSpent)}</Text>
+            <Text style={styles.statLabel}>Total Spent</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Quick Actions */}
+      <View style={styles.quickActionsContainer}>
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <View style={styles.quickActionsRow}>
+          <TouchableOpacity
+            style={styles.quickAction}
+            onPress={() => navigation.navigate('BrowseCrops')}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#2E7D32' + '20' }]}>
+              <MaterialIcons name="search" size={22} color="#2E7D32" />
+            </View>
+            <Text style={styles.quickActionText}>Find Crops</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickAction}
+            onPress={() => navigation.navigate('MyProposals')}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#E65100' + '20' }]}>
+              <MaterialIcons name="assignment" size={22} color="#E65100" />
+            </View>
+            <Text style={styles.quickActionText}>Proposals</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickAction}
+            onPress={() => navigation.navigate('MyOrders')}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#1565C0' + '20' }]}>
+              <MaterialIcons name="receipt-long" size={22} color="#1565C0" />
+            </View>
+            <Text style={styles.quickActionText}>Orders</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickAction}
+            onPress={() => navigation.navigate('Analytics')}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#6A1B9A' + '20' }]}>
+              <MaterialIcons name="trending-up" size={22} color="#6A1B9A" />
+            </View>
+            <Text style={styles.quickActionText}>Analytics</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* Feature Cards Grid */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>All Features</Text>
+      </View>
       <View style={styles.featuresGrid}>
         {featureCards.map((feature, index) => (
           <TouchableOpacity
@@ -93,19 +294,7 @@ const TraderDashboardScreen = ({ navigation }) => {
               onPress={() => navigation.navigate(feature.screen)}
             >
               <Text style={styles.actionButtonText}>
-                {feature.title === t('trader.dashboard.kycVerification') 
-                  ? t('trader.dashboard.verifyKYC')
-                  : feature.title === t('trader.dashboard.browseCrops')
-                  ? t('trader.dashboard.browseNow')
-                  : feature.title === t('trader.dashboard.myProposals')
-                  ? t('trader.dashboard.viewProposals')
-                  : feature.title === t('trader.dashboard.myOrders')
-                  ? t('trader.dashboard.trackOrders')
-                  : feature.title === t('trader.dashboard.payments')
-                  ? t('trader.dashboard.managePayments')
-                  : feature.title === t('trader.dashboard.marketAnalytics')
-                  ? t('trader.dashboard.viewAnalytics')
-                  : t('trader.dashboard.connectNow')}
+                {getActionButtonText(feature.title)}
               </Text>
             </TouchableOpacity>
           </TouchableOpacity>
@@ -123,7 +312,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   welcomeSection: {
-    backgroundColor: Colors.primary,
+    backgroundColor: '#E65100',
     margin: 16,
     padding: 20,
     borderRadius: 16,
@@ -131,13 +320,74 @@ const styles = StyleSheet.create({
   welcomeTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: Colors.white,
+    color: '#FFFFFF',
     marginBottom: 8,
   },
   welcomeDescription: {
     fontSize: 14,
-    color: Colors.white,
+    color: '#FFFFFF',
     opacity: 0.9,
+  },
+  statsContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  statCard: {
+    flex: 1,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginTop: 8,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  quickActionsContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  sectionHeader: {
+    paddingHorizontal: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 12,
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  quickAction: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  quickActionIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  quickActionText: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    textAlign: 'center',
   },
   featuresGrid: {
     flexDirection: 'row',
@@ -184,7 +434,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   actionButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '600',
   },

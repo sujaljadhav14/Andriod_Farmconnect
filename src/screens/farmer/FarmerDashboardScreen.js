@@ -1,4 +1,10 @@
-import React, { useState, useEffect } from 'react';
+/**
+ * Farmer Dashboard Screen
+ * Shows farmer stats and quick navigation
+ * NO DEMO DATA - All data from real backend
+ */
+
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,76 +13,132 @@ import {
   TouchableOpacity,
   Modal,
   Linking,
+  RefreshControl,
 } from 'react-native';
-import { MaterialIcons, FontAwesome5, Ionicons, FontAwesome } from '@expo/vector-icons';
-import { Colors } from '../../constants/colors';
+import { useIsFocused } from '@react-navigation/native';
+import { MaterialIcons } from '@expo/vector-icons';
+import Colors from '../../constants/colors';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuth } from '../../context/AuthContext';
+import cropService from '../../services/cropService';
+import proposalService from '../../services/proposalService';
+import apiService from '../../services/apiService';
+import { API_ENDPOINTS } from '../../config/api';
+import { formatCurrency } from '../../utils/formatters';
 
 const FarmerDashboardScreen = ({ navigation }) => {
   const { t } = useLanguage();
+  const { user } = useAuth();
+  const isFocused = useIsFocused();
   const [stats, setStats] = useState({
     totalCrops: 0,
     activeCrops: 0,
     pendingOrders: 0,
     completedOrders: 0,
     totalEarnings: 0,
-    pendingPayments: 0,
+    pendingProposals: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
 
-  // Simulated data fetching (replace with actual API calls)
-  useEffect(() => {
-    // Simulate API call
-    const fetchDashboardStats = async () => {
-      try {
-        // In real app, make API calls here
-        // const cropsRes = await axios.get('/api/crops/my-crops');
-        // const ordersRes = await axios.get('/api/orders/farmer/my-orders');
-        
-        // Simulated data
-        setStats({
-          totalCrops: 8,
-          activeCrops: 5,
-          pendingOrders: 3,
-          completedOrders: 24,
-          totalEarnings: 120000,
-          pendingPayments: 45000,
-        });
-      } catch (error) {
-        console.error('Error fetching dashboard stats:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const loadDashboardData = useCallback(async (showLoader = true) => {
+    if (showLoader) setLoading(true);
 
-    fetchDashboardStats();
+    try {
+      // Fetch data in parallel
+      const [cropsRes, proposalsRes, ordersRes] = await Promise.allSettled([
+        cropService.getMyCrops().catch(() => ({ crops: [] })),
+        proposalService.getFarmerProposals().catch(() => ({ proposals: [] })),
+        apiService.get(API_ENDPOINTS.ORDERS.FARMER_ORDERS).catch(() => ({ orders: [] })),
+      ]);
+
+      // Process crops
+      const crops = cropsRes.status === 'fulfilled' && cropsRes.value
+        ? (cropsRes.value.crops || cropsRes.value.data || [])
+        : [];
+      const totalCrops = crops.length;
+      const activeCrops = crops.filter(c => c.status === 'Available').length;
+
+      // Process proposals
+      const proposals = proposalsRes.status === 'fulfilled' && proposalsRes.value
+        ? (proposalsRes.value.proposals || proposalsRes.value.data || [])
+        : [];
+      const pendingProposals = proposals.filter(p =>
+        p.status?.toLowerCase() === 'pending'
+      ).length;
+
+      // Process orders
+      const orders = ordersRes.status === 'fulfilled' && ordersRes.value
+        ? (ordersRes.value.orders || ordersRes.value.data || [])
+        : [];
+      const pendingOrders = orders.filter(o =>
+        !['Completed', 'Cancelled', 'Delivered'].includes(o.status)
+      ).length;
+      const completedOrders = orders.filter(o =>
+        ['Completed', 'Delivered'].includes(o.status)
+      ).length;
+
+      // Calculate total earnings
+      const totalEarnings = orders
+        .filter(o => ['Completed', 'Delivered'].includes(o.status))
+        .reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+
+      setStats({
+        totalCrops,
+        activeCrops,
+        pendingOrders,
+        completedOrders,
+        totalEarnings,
+        pendingProposals,
+      });
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
+  useEffect(() => {
+    if (isFocused) {
+      loadDashboardData();
+    }
+  }, [isFocused, loadDashboardData]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadDashboardData(false);
+  }, [loadDashboardData]);
+
   const statCards = [
-    { 
-      title: t('farmer.dashboard.totalCrops'), 
-      value: stats.totalCrops, 
-      icon: 'grass', 
-      color: '#2E7D32' 
+    {
+      title: t('farmer.dashboard.totalCrops'),
+      value: stats.totalCrops,
+      icon: 'grass',
+      color: '#2E7D32',
+      screen: 'MyCrops',
     },
-    { 
-      title: t('farmer.dashboard.activeListings'), 
-      value: stats.activeCrops, 
-      icon: 'trending-up', 
-      color: '#1565C0' 
+    {
+      title: t('farmer.dashboard.activeListings'),
+      value: stats.activeCrops,
+      icon: 'trending-up',
+      color: '#1565C0',
+      screen: 'MyCrops',
     },
-    { 
-      title: t('farmer.dashboard.pendingOrders'), 
-      value: stats.pendingOrders, 
-      icon: 'hourglass-empty', 
-      color: '#E65100' 
+    {
+      title: t('farmer.dashboard.pendingOrders'),
+      value: stats.pendingOrders,
+      icon: 'hourglass-empty',
+      color: '#E65100',
+      screen: 'MyOrders',
     },
-    { 
-      title: t('farmer.dashboard.totalEarnings'), 
-      value: `₹${(stats.totalEarnings / 1000).toFixed(1)}L`, 
-      icon: 'account-balance-wallet', 
-      color: '#6A1B9A' 
+    {
+      title: t('farmer.dashboard.totalEarnings'),
+      value: formatCurrency(stats.totalEarnings),
+      icon: 'account-balance-wallet',
+      color: '#6A1B9A',
+      screen: 'MyOrders',
     },
   ];
 
@@ -151,47 +213,120 @@ const FarmerDashboardScreen = ({ navigation }) => {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />
+      }
+    >
       {/* Welcome Card */}
       <View style={styles.welcomeCard}>
-        <View>
+        <View style={styles.welcomeContent}>
           <Text style={styles.welcomeText}>{t('farmer.dashboard.welcome')}</Text>
-          <Text style={styles.nameText}>Farmer Demo User</Text>
+          <Text style={styles.nameText}>{user?.name || 'Farmer'}</Text>
         </View>
-        <MaterialIcons name="notifications-none" size={28} color={Colors.white} />
+        <TouchableOpacity onPress={() => navigation.navigate('Notifications')}>
+          <MaterialIcons name="notifications-none" size={28} color="#FFFFFF" />
+        </TouchableOpacity>
       </View>
 
       {/* Stats Grid */}
       <View style={styles.statsGrid}>
         {statCards.map((stat, index) => (
-          <View key={index} style={styles.statCard}>
+          <TouchableOpacity
+            key={index}
+            style={styles.statCard}
+            onPress={() => navigation.navigate(stat.screen)}
+          >
             <View style={[styles.statIcon, { backgroundColor: stat.color + '15' }]}>
               <MaterialIcons name={stat.icon} size={24} color={stat.color} />
             </View>
             <Text style={styles.statValue}>
-              {loading
-                ? '...'
-                : stat.icon === 'account-balance-wallet'
-                ? `\u20B9${(stats.totalEarnings / 1000).toFixed(1)}L`
-                : stat.value}
+              {loading ? '...' : stat.value}
             </Text>
             <Text style={styles.statLabel}>{stat.title}</Text>
-          </View>
+          </TouchableOpacity>
         ))}
       </View>
 
+      {/* Pending Proposals Alert */}
+      {stats.pendingProposals > 0 && (
+        <TouchableOpacity
+          style={styles.alertCard}
+          onPress={() => navigation.navigate('ReceivedProposals')}
+        >
+          <MaterialIcons name="assignment" size={20} color="#E65100" style={{ marginRight: 8 }} />
+          <Text style={styles.alertText}>
+            You have {stats.pendingProposals} new proposal{stats.pendingProposals !== 1 ? 's' : ''} to review
+          </Text>
+          <MaterialIcons name="chevron-right" size={20} color="#E65100" />
+        </TouchableOpacity>
+      )}
+
       {/* Pending Orders Alert */}
       {stats.pendingOrders > 0 && (
-        <View style={styles.alertCard}>
+        <TouchableOpacity
+          style={styles.alertCard}
+          onPress={() => navigation.navigate('MyOrders')}
+        >
           <MaterialIcons name="warning" size={20} color="#E65100" style={{ marginRight: 8 }} />
           <Text style={styles.alertText}>
             {t('farmer.dashboard.pendingOrdersAlert', { count: stats.pendingOrders })}
           </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('MyOrders')}>
-            <Text style={styles.alertLink}>{t('farmer.dashboard.viewOrdersLink')}</Text>
+          <MaterialIcons name="chevron-right" size={20} color="#E65100" />
+        </TouchableOpacity>
+      )}
+
+      {/* Quick Actions */}
+      <View style={styles.quickActionsContainer}>
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <View style={styles.quickActionsRow}>
+          <TouchableOpacity
+            style={styles.quickAction}
+            onPress={() => navigation.navigate('AddCrop')}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#2E7D32' + '20' }]}>
+              <MaterialIcons name="add" size={22} color="#2E7D32" />
+            </View>
+            <Text style={styles.quickActionText}>Add Crop</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickAction}
+            onPress={() => navigation.navigate('MyCrops')}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#1565C0' + '20' }]}>
+              <MaterialIcons name="grass" size={22} color="#1565C0" />
+            </View>
+            <Text style={styles.quickActionText}>My Crops</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickAction}
+            onPress={() => navigation.navigate('ReceivedProposals')}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#E65100' + '20' }]}>
+              <MaterialIcons name="assignment" size={22} color="#E65100" />
+              {stats.pendingProposals > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{stats.pendingProposals}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.quickActionText}>Proposals</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickAction}
+            onPress={() => navigation.navigate('MyOrders')}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#6A1B9A' + '20' }]}>
+              <MaterialIcons name="receipt-long" size={22} color="#6A1B9A" />
+            </View>
+            <Text style={styles.quickActionText}>Orders</Text>
           </TouchableOpacity>
         </View>
-      )}
+      </View>
 
       {/* Description */}
       <Text style={styles.description}>
@@ -231,7 +366,7 @@ const FarmerDashboardScreen = ({ navigation }) => {
             <Text style={styles.contactText}>865568655</Text>
           </View>
           <TouchableOpacity style={styles.tutorialButton} onPress={() => setShowSupportModal(true)}>
-            <MaterialIcons name="play-circle-filled" size={16} color={Colors.white} />
+            <MaterialIcons name="play-circle-filled" size={16} color="#FFFFFF" />
             <Text style={styles.tutorialText}>{t('farmer.dashboard.watchTutorial')}</Text>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -297,15 +432,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  welcomeContent: {
+    flex: 1,
+  },
   welcomeText: {
     fontSize: 14,
-    color: Colors.white,
+    color: '#FFFFFF',
     opacity: 0.9,
   },
   nameText: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: Colors.white,
+    color: '#FFFFFF',
     marginTop: 4,
   },
   statsGrid: {
@@ -343,27 +481,70 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     marginTop: 2,
+    textAlign: 'center',
   },
   alertCard: {
     backgroundColor: '#FFF3E0',
     marginHorizontal: 16,
-    marginBottom: 16,
-    padding: 12,
-    borderRadius: 8,
+    marginBottom: 12,
+    padding: 14,
+    borderRadius: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
   },
   alertText: {
     color: '#E65100',
     fontSize: 14,
     flex: 1,
   },
-  alertLink: {
-    color: '#E65100',
-    fontSize: 14,
+  quickActionsContainer: {
+    paddingHorizontal: 16,
+    marginVertical: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 12,
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  quickAction: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  quickActionIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+    position: 'relative',
+  },
+  quickActionText: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#D32F2F',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
     fontWeight: 'bold',
-    marginLeft: 8,
   },
   description: {
     color: Colors.textSecondary,
@@ -429,7 +610,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tutorialText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 12,
     marginLeft: 4,
   },
@@ -507,7 +688,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   closeButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },

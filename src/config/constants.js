@@ -96,6 +96,15 @@ export const PAYMENT_METHODS = {
   CASH: 'cash',
 };
 
+// Payment Terms for Proposals
+export const PAYMENT_TERMS = [
+  'On Delivery',
+  'Advance Payment',
+  '50% Advance',
+  'Credit (7 Days)',
+  'Credit (15 Days)',
+];
+
 // Payment Status
 export const PAYMENT_STATUS = {
   PENDING: 'Pending',

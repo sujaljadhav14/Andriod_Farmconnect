@@ -1,6 +1,6 @@
 /**
- * My Proposals Screen - Trader
- * Shows all proposals made by the trader
+ * Received Proposals Screen - Farmer
+ * Shows proposals received from traders with accept/reject actions
  * NO DEMO DATA - All data from real backend
  */
 
@@ -14,6 +14,8 @@ import {
   RefreshControl,
   Alert,
   Image,
+  TextInput,
+  Modal,
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -27,7 +29,6 @@ const STATUS_TABS = [
   { key: 'Pending', label: 'Pending' },
   { key: 'Accepted', label: 'Accepted' },
   { key: 'Rejected', label: 'Rejected' },
-  { key: 'Withdrawn', label: 'Withdrawn' },
 ];
 
 const getStatusColor = (status) => {
@@ -77,20 +78,23 @@ const getCategoryIcon = (category) => {
   }
 };
 
-const MyProposalsScreen = ({ navigation }) => {
+const ReceivedProposalsScreen = ({ navigation }) => {
   const isFocused = useIsFocused();
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [selectedTab, setSelectedTab] = useState('all');
+  const [rejectModalVisible, setRejectModalVisible] = useState(false);
+  const [selectedProposal, setSelectedProposal] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   const loadProposals = useCallback(async (showLoader = true) => {
     if (showLoader) setLoading(true);
     setError(null);
 
     try {
-      const response = await proposalService.getTraderProposals();
+      const response = await proposalService.getFarmerProposals();
       const normalizedProposals = proposalService.normalizeProposals(
         response.proposals || response.data || []
       );
@@ -116,25 +120,29 @@ const MyProposalsScreen = ({ navigation }) => {
     loadProposals(false);
   }, [loadProposals]);
 
-  const handleWithdraw = (proposalId, cropName) => {
+  const handleAccept = (proposal) => {
     Alert.alert(
-      'Withdraw Proposal',
-      `Are you sure you want to withdraw your proposal for "${cropName}"? This action cannot be undone.`,
+      'Accept Proposal',
+      `Are you sure you want to accept the proposal from ${proposal.trader?.name || 'the trader'}?\n\nThis will create an order for ${proposal.proposedQuantity} ${proposal.crop?.unit || 'kg'} at ${formatCurrency(proposal.proposedPrice)}/${proposal.crop?.unit || 'kg'}.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Withdraw',
-          style: 'destructive',
+          text: 'Accept',
+          style: 'default',
           onPress: async () => {
             try {
-              await proposalService.withdrawProposal(proposalId);
+              await proposalService.acceptProposal(proposal.id);
               // Update local state
               setProposals(proposals.map(p =>
-                p.id === proposalId ? { ...p, status: 'Withdrawn' } : p
+                p.id === proposal.id ? { ...p, status: 'Accepted' } : p
               ));
-              Alert.alert('Success', 'Proposal withdrawn successfully.');
+              Alert.alert(
+                'Proposal Accepted',
+                'The proposal has been accepted. An order has been created.',
+                [{ text: 'View Orders', onPress: () => navigation.navigate('MyOrders') }, { text: 'OK' }]
+              );
             } catch (err) {
-              Alert.alert('Error', err.message || 'Failed to withdraw proposal');
+              Alert.alert('Error', err.message || 'Failed to accept proposal');
             }
           },
         },
@@ -142,20 +150,37 @@ const MyProposalsScreen = ({ navigation }) => {
     );
   };
 
+  const handleRejectPress = (proposal) => {
+    setSelectedProposal(proposal);
+    setRejectReason('');
+    setRejectModalVisible(true);
+  };
+
+  const handleRejectConfirm = async () => {
+    if (!selectedProposal) return;
+
+    try {
+      await proposalService.rejectProposal(selectedProposal.id, rejectReason.trim() || 'No reason provided');
+      // Update local state
+      setProposals(proposals.map(p =>
+        p.id === selectedProposal.id
+          ? { ...p, status: 'Rejected', rejectionReason: rejectReason.trim() || 'No reason provided' }
+          : p
+      ));
+      setRejectModalVisible(false);
+      setSelectedProposal(null);
+      Alert.alert('Proposal Rejected', 'The proposal has been rejected.');
+    } catch (err) {
+      Alert.alert('Error', err.message || 'Failed to reject proposal');
+    }
+  };
+
   const filteredProposals = selectedTab === 'all'
     ? proposals
     : proposals.filter(p => p.status?.toLowerCase() === selectedTab.toLowerCase());
 
   const renderProposal = ({ item }) => (
-    <TouchableOpacity
-      style={styles.card}
-      activeOpacity={0.7}
-      onPress={() => {
-        if (item.crop?.id) {
-          navigation.navigate('CropDetail', { cropId: item.crop.id });
-        }
-      }}
-    >
+    <View style={styles.card}>
       <View style={styles.cardTop}>
         {/* Crop Image or Icon */}
         <View style={styles.cropImageContainer}>
@@ -176,9 +201,12 @@ const MyProposalsScreen = ({ navigation }) => {
           <Text style={styles.cropName} numberOfLines={1}>
             {item.crop?.cropName || 'Unknown Crop'}
           </Text>
-          <Text style={styles.farmerName} numberOfLines={1}>
-            To: {item.farmer?.name || 'Farmer'}
+          <Text style={styles.traderName} numberOfLines={1}>
+            From: {item.trader?.name || 'Trader'}
           </Text>
+          {item.trader?.phone && (
+            <Text style={styles.traderPhone}>+91 {item.trader.phone}</Text>
+          )}
         </View>
 
         <View style={[styles.badge, { backgroundColor: getStatusColor(item.status) + '15' }]}>
@@ -191,7 +219,7 @@ const MyProposalsScreen = ({ navigation }) => {
 
       <View style={styles.cardMiddle}>
         <View style={styles.detailItem}>
-          <Text style={styles.detailLabel}>Proposed Price</Text>
+          <Text style={styles.detailLabel}>Offered Price</Text>
           <Text style={styles.detailValue}>
             {formatCurrency(item.proposedPrice)}/{item.crop?.unit || 'kg'}
           </Text>
@@ -210,39 +238,53 @@ const MyProposalsScreen = ({ navigation }) => {
         </View>
       </View>
 
-      <View style={styles.cardBottom}>
+      {item.paymentTerms && (
+        <View style={styles.paymentTermsRow}>
+          <MaterialIcons name="payments" size={14} color={Colors.textSecondary} />
+          <Text style={styles.paymentTermsText}>Payment: {item.paymentTerms}</Text>
+        </View>
+      )}
+
+      {item.message && (
+        <View style={styles.messageContainer}>
+          <MaterialIcons name="chat-bubble-outline" size={14} color={Colors.textSecondary} />
+          <Text style={styles.messageText} numberOfLines={3}>{item.message}</Text>
+        </View>
+      )}
+
+      <View style={styles.cardFooter}>
         <View style={styles.dateInfo}>
           <MaterialIcons name="schedule" size={14} color={Colors.textSecondary} />
           <Text style={styles.dateText}>{formatDate(item.createdAt)}</Text>
         </View>
 
         {item.status?.toLowerCase() === 'pending' && (
-          <TouchableOpacity
-            style={styles.withdrawButton}
-            onPress={() => handleWithdraw(item.id, item.crop?.cropName)}
-          >
-            <MaterialIcons name="undo" size={16} color={Colors.error} />
-            <Text style={styles.withdrawText}>Withdraw</Text>
-          </TouchableOpacity>
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={styles.rejectButton}
+              onPress={() => handleRejectPress(item)}
+            >
+              <MaterialIcons name="close" size={16} color={Colors.error} />
+              <Text style={styles.rejectButtonText}>Reject</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.acceptButton}
+              onPress={() => handleAccept(item)}
+            >
+              <MaterialIcons name="check" size={16} color="#FFFFFF" />
+              <Text style={styles.acceptButtonText}>Accept</Text>
+            </TouchableOpacity>
+          </View>
         )}
 
         {item.status?.toLowerCase() === 'rejected' && item.rejectionReason && (
-          <View style={styles.rejectionReason}>
-            <Text style={styles.rejectionLabel}>Reason:</Text>
-            <Text style={styles.rejectionText} numberOfLines={1}>
-              {item.rejectionReason}
-            </Text>
+          <View style={styles.rejectionReasonContainer}>
+            <Text style={styles.rejectionLabel}>Rejection Reason:</Text>
+            <Text style={styles.rejectionReasonText}>{item.rejectionReason}</Text>
           </View>
         )}
       </View>
-
-      {item.message && (
-        <View style={styles.messageContainer}>
-          <MaterialIcons name="chat-bubble-outline" size={14} color={Colors.textSecondary} />
-          <Text style={styles.messageText} numberOfLines={2}>{item.message}</Text>
-        </View>
-      )}
-    </TouchableOpacity>
+    </View>
   );
 
   if (loading) {
@@ -289,7 +331,7 @@ const MyProposalsScreen = ({ navigation }) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={['#E65100']}
+            colors={[Colors.primary]}
           />
         }
         ListHeaderComponent={
@@ -308,7 +350,7 @@ const MyProposalsScreen = ({ navigation }) => {
             <Text style={styles.emptyText}>
               {error ||
                 (selectedTab === 'all'
-                  ? 'Browse crops and make proposals to start trading'
+                  ? 'When traders are interested in your crops, their proposals will appear here'
                   : `No ${selectedTab.toLowerCase()} proposals`)}
             </Text>
             {error && (
@@ -316,17 +358,60 @@ const MyProposalsScreen = ({ navigation }) => {
                 <Text style={styles.retryText}>Try Again</Text>
               </TouchableOpacity>
             )}
-            {!error && selectedTab === 'all' && (
-              <TouchableOpacity
-                style={styles.browseButton}
-                onPress={() => navigation.navigate('Browse')}
-              >
-                <Text style={styles.browseButtonText}>Browse Crops</Text>
-              </TouchableOpacity>
-            )}
           </View>
         }
       />
+
+      {/* Reject Modal */}
+      <Modal
+        visible={rejectModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setRejectModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Reject Proposal</Text>
+              <TouchableOpacity onPress={() => setRejectModalVisible(false)}>
+                <MaterialIcons name="close" size={24} color={Colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalSubtitle}>
+              Please provide a reason for rejecting this proposal (optional):
+            </Text>
+
+            <TextInput
+              style={styles.rejectReasonInput}
+              value={rejectReason}
+              onChangeText={setRejectReason}
+              placeholder="e.g., Price too low, already sold, etc."
+              placeholderTextColor={Colors.textSecondary}
+              multiline
+              numberOfLines={3}
+              maxLength={200}
+            />
+
+            <Text style={styles.charCount}>{rejectReason.length}/200</Text>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setRejectModalVisible(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalRejectButton}
+                onPress={handleRejectConfirm}
+              >
+                <Text style={styles.modalRejectText}>Reject Proposal</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -355,7 +440,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   tabActive: {
-    backgroundColor: '#E65100',
+    backgroundColor: Colors.primary,
   },
   tabText: {
     fontSize: 13,
@@ -391,12 +476,12 @@ const styles = StyleSheet.create({
   },
   cardTop: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 14,
   },
   cropImageContainer: {
-    width: 48,
-    height: 48,
+    width: 56,
+    height: 56,
     borderRadius: 8,
     overflow: 'hidden',
     marginRight: 12,
@@ -421,9 +506,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.text,
   },
-  farmerName: {
+  traderName: {
     fontSize: 13,
     color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  traderPhone: {
+    fontSize: 12,
+    color: Colors.primary,
     marginTop: 2,
   },
   badge: {
@@ -463,68 +553,95 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   totalValue: {
-    color: '#E65100',
+    color: Colors.primary,
     fontWeight: '600',
   },
-  cardBottom: {
+  paymentTermsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  paymentTermsText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginLeft: 6,
+  },
+  messageContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: Colors.background,
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  messageText: {
+    flex: 1,
+    fontSize: 12,
+    color: Colors.text,
+    marginLeft: 6,
+    lineHeight: 18,
+  },
+  cardFooter: {
+    flexDirection: 'column',
   },
   dateInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 12,
   },
   dateText: {
     fontSize: 12,
     color: Colors.textSecondary,
     marginLeft: 4,
   },
-  withdrawButton: {
+  actionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+  },
+  rejectButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: Colors.error,
   },
-  withdrawText: {
-    fontSize: 12,
+  rejectButtonText: {
+    fontSize: 14,
     color: Colors.error,
     fontWeight: '500',
     marginLeft: 4,
   },
-  rejectionReason: {
+  acceptButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
-    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#2E7D32',
+  },
+  acceptButtonText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '500',
+    marginLeft: 4,
+  },
+  rejectionReasonContainer: {
+    backgroundColor: '#FFEBEE',
+    padding: 10,
+    borderRadius: 8,
   },
   rejectionLabel: {
     fontSize: 11,
     color: Colors.error,
-    marginRight: 4,
+    fontWeight: '500',
   },
-  rejectionText: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-    maxWidth: 120,
-  },
-  messageContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  messageText: {
-    flex: 1,
+  rejectionReasonText: {
     fontSize: 12,
-    color: Colors.textSecondary,
-    marginLeft: 6,
-    lineHeight: 16,
+    color: Colors.text,
+    marginTop: 2,
   },
   emptyState: {
     alignItems: 'center',
@@ -548,25 +665,92 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingHorizontal: 20,
     paddingVertical: 10,
-    backgroundColor: '#E65100',
+    backgroundColor: Colors.primary,
     borderRadius: 8,
   },
   retryText: {
     color: '#FFFFFF',
     fontWeight: '600',
   },
-  browseButton: {
-    marginTop: 16,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    backgroundColor: '#E65100',
-    borderRadius: 8,
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  browseButtonText: {
-    color: '#FFFFFF',
+  modalContent: {
+    backgroundColor: Colors.background,
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    width: '90%',
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
     fontWeight: '600',
+    color: Colors.text,
+  },
+  modalSubtitle: {
     fontSize: 14,
+    color: Colors.textSecondary,
+    marginBottom: 12,
+  },
+  rejectReasonInput: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: Colors.text,
+    height: 100,
+    textAlignVertical: 'top',
+  },
+  charCount: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    textAlign: 'right',
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  modalRejectButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: Colors.error,
+    alignItems: 'center',
+  },
+  modalRejectText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
 
-export default MyProposalsScreen;
+export default ReceivedProposalsScreen;

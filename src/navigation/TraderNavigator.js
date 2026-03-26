@@ -7,6 +7,7 @@ import { Colors } from '../constants/colors';
 import TraderDashboardScreen from '../screens/trader/TraderDashboardScreen';
 import BrowseCropsScreen from '../screens/trader/BrowseCropsScreen';
 import CropDetailScreen from '../screens/trader/CropDetailScreen';
+import CreateProposalScreen from '../screens/trader/CreateProposalScreen';
 import MyOrdersScreen from '../screens/trader/MyOrdersScreen';
 import MyProposalsScreen from '../screens/trader/MyProposalsScreen';
 import KYCScreen from '../screens/trader/KYCScreen';
@@ -27,6 +28,7 @@ const BrowseStack = () => {
       }}>
       <Stack.Screen name="BrowseList" component={BrowseCropsScreen} options={{ title: 'Browse Crops' }} />
       <Stack.Screen name="CropDetail" component={CropDetailScreen} options={{ title: 'Crop Details' }} />
+      <Stack.Screen name="CreateProposal" component={CreateProposalScreen} options={{ title: 'Make Proposal' }} />
     </Stack.Navigator>
   );
 };
@@ -42,6 +44,8 @@ const DashboardStack = () => {
       <Stack.Screen name="DashboardMain" component={TraderDashboardScreen} options={{ title: 'Trader Dashboard' }} />
       <Stack.Screen name="KYC" component={KYCScreen} options={{ title: 'KYC Verification' }} />
       <Stack.Screen name="BrowseCrops" component={BrowseCropsScreen} options={{ title: 'Browse Crops' }} />
+      <Stack.Screen name="CropDetail" component={CropDetailScreen} options={{ title: 'Crop Details' }} />
+      <Stack.Screen name="CreateProposal" component={CreateProposalScreen} options={{ title: 'Make Proposal' }} />
       <Stack.Screen name="MyProposals" component={MyProposalsScreen} options={{ title: 'My Proposals' }} />
       <Stack.Screen name="MyOrders" component={MyOrdersScreen} options={{ title: 'My Orders' }} />
       <Stack.Screen name="Payments" component={PaymentsScreen} options={{ title: 'Payments' }} />
