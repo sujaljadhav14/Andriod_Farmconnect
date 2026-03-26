@@ -1,44 +1,77 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
-
-const mockCrops = [
-  { id: '1', name: 'Wheat', category: 'Grains', quantity: '500 kg', price: '\u20B928/kg', quality: 'A+', status: 'Available', harvestDate: '2025-03-15' },
-  { id: '2', name: 'Rice (Basmati)', category: 'Grains', quantity: '1000 kg', price: '\u20B965/kg', quality: 'A', status: 'Reserved', harvestDate: '2025-02-20' },
-  { id: '3', name: 'Tomatoes', category: 'Vegetables', quantity: '200 kg', price: '\u20B940/kg', quality: 'A', status: 'Available', harvestDate: '2025-01-30' },
-  { id: '4', name: 'Onions', category: 'Vegetables', quantity: '800 kg', price: '\u20B922/kg', quality: 'B', status: 'Available', harvestDate: '2025-02-10' },
-  { id: '5', name: 'Turmeric', category: 'Spices', quantity: '150 kg', price: '\u20B9120/kg', quality: 'A+', status: 'Sold', harvestDate: '2025-01-15' },
-  { id: '6', name: 'Soybean', category: 'Pulses', quantity: '600 kg', price: '\u20B955/kg', quality: 'A', status: 'Available', harvestDate: '2025-03-01' },
-];
+import { getCrops, isCropApiConfigured } from '../../services/cropService';
 
 const getStatusColor = (status) => {
   switch (status) {
-    case 'Available': return '#2E7D32';
-    case 'Reserved': return '#E65100';
-    case 'Sold': return '#1565C0';
-    default: return Colors.textSecondary;
+    case 'Available':
+      return '#2E7D32';
+    case 'Reserved':
+      return '#E65100';
+    case 'Sold':
+      return '#1565C0';
+    default:
+      return Colors.textSecondary;
   }
 };
 
 const getCategoryIcon = (category) => {
   switch (category) {
-    case 'Grains': return 'grass';
-    case 'Vegetables': return 'eco';
-    case 'Fruits': return 'local-florist';
-    case 'Spices': return 'local-fire-department';
-    case 'Pulses': return 'grain';
-    default: return 'agriculture';
+    case 'Grains':
+      return 'grass';
+    case 'Vegetables':
+      return 'eco';
+    case 'Fruits':
+      return 'local-florist';
+    case 'Spices':
+      return 'local-fire-department';
+    case 'Pulses':
+      return 'grain';
+    default:
+      return 'agriculture';
   }
 };
 
 const MyCropsScreen = ({ navigation }) => {
+  const isFocused = useIsFocused();
+  const [crops, setCrops] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [dataMode, setDataMode] = useState('demo');
+
+  useEffect(() => {
+    if (!isFocused) {
+      return;
+    }
+
+    const loadCrops = async () => {
+      setLoading(true);
+
+      try {
+        const result = await getCrops();
+        setCrops(result.crops);
+        setDataMode(result.mode);
+      } catch (error) {
+        console.error('Failed to load crops:', error);
+        setCrops([]);
+        setDataMode('demo');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCrops();
+  }, [isFocused]);
+
   const renderCrop = ({ item }) => (
     <TouchableOpacity style={styles.cropCard} activeOpacity={0.7}>
       <View style={styles.cropHeader}>
@@ -74,20 +107,50 @@ const MyCropsScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <FlatList
-        data={mockCrops}
-        renderItem={renderCrop}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        ListHeaderComponent={
-          <View style={styles.summary}>
-            <Text style={styles.summaryText}>{mockCrops.length} crops listed</Text>
-          </View>
-        }
-      />
+      {loading ? (
+        <View style={styles.loader}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loaderText}>Loading crops...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={crops}
+          renderItem={renderCrop}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          ListHeaderComponent={
+            <View>
+              <View style={styles.summary}>
+                <Text style={styles.summaryText}>{crops.length} crops listed</Text>
+              </View>
+              <View style={styles.modeBanner}>
+                <MaterialIcons
+                  name={dataMode === 'remote' ? 'cloud-done' : 'science'}
+                  size={18}
+                  color={Colors.primary}
+                />
+                <Text style={styles.modeBannerText}>
+                  {dataMode === 'remote'
+                    ? 'Showing crop data from the backend service.'
+                    : isCropApiConfigured()
+                    ? 'Crop API was unreachable, so demo data is shown.'
+                    : 'Crop API is not configured, so demo data is shown.'}
+                </Text>
+              </View>
+            </View>
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <MaterialIcons name="inventory-2" size={40} color={Colors.textSecondary} />
+              <Text style={styles.emptyTitle}>No crops available</Text>
+              <Text style={styles.emptyText}>Add a crop to start building your listing.</Text>
+            </View>
+          }
+        />
+      )}
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => navigation.navigate('AddCropFromList')}
+        onPress={() => navigation.navigate('AddCrop')}
         activeOpacity={0.8}>
         <MaterialIcons name="add" size={28} color={Colors.white} />
       </TouchableOpacity>
@@ -100,8 +163,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  loader: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  loaderText: {
+    marginTop: 12,
+    color: Colors.textSecondary,
+  },
   list: {
     padding: 16,
+    paddingBottom: 100,
   },
   summary: {
     marginBottom: 12,
@@ -109,6 +183,21 @@ const styles = StyleSheet.create({
   summaryText: {
     fontSize: 14,
     color: Colors.textSecondary,
+  },
+  modeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary + '10',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  modeBannerText: {
+    flex: 1,
+    marginLeft: 8,
+    color: Colors.text,
+    fontSize: 13,
+    lineHeight: 18,
   },
   cropCard: {
     backgroundColor: Colors.surface,
@@ -172,6 +261,21 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontSize: 13,
     color: Colors.textSecondary,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 48,
+  },
+  emptyTitle: {
+    marginTop: 12,
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  emptyText: {
+    marginTop: 6,
+    color: Colors.textSecondary,
+    textAlign: 'center',
   },
   fab: {
     position: 'absolute',

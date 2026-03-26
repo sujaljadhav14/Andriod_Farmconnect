@@ -49,7 +49,7 @@ const CropsStack = () => {
         headerTitleStyle: { fontWeight: '600' },
       }}>
       <Stack.Screen name="MyCropsList" component={MyCropsScreen} options={{ title: 'My Crops' }} />
-      <Stack.Screen name="AddCropFromList" component={AddCropScreen} options={{ title: 'Add New Crop' }} />
+      <Stack.Screen name="AddCrop" component={AddCropScreen} options={{ title: 'Add New Crop' }} />
     </Stack.Navigator>
   );
 };

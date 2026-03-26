@@ -114,6 +114,15 @@ const TransportDashboard = ({ navigation }) => {
     Linking.openURL('tel:865568655');
   };
 
+  const openFeature = (screen) => {
+    if (screen === 'Support') {
+      setShowSupportModal(true);
+      return;
+    }
+
+    navigation.navigate(screen);
+  };
+
   return (
     <ScrollView style={styles.container}>
       {/* Welcome Section */}
@@ -156,12 +165,23 @@ const TransportDashboard = ({ navigation }) => {
           </Text>
           <Text style={styles.statLabel}>Vehicles</Text>
         </View>
+        {false && (
         <View style={styles.statCard}>
           <View style={[styles.statIcon, { backgroundColor: '#6A1B9A15' }]}>
             <MaterialIcons name="account-balance-wallet" size={24} color="#6A1B9A" />
           </View>
           <Text style={styles.statValue}>
             {loading ? '...' : `₹${(stats.totalEarnings / 1000).toFixed(1)}K`}
+          </Text>
+          <Text style={styles.statLabel}>Earnings</Text>
+        </View>
+        )}
+        <View style={styles.statCard}>
+          <View style={[styles.statIcon, { backgroundColor: '#6A1B9A15' }]}>
+            <MaterialIcons name="account-balance-wallet" size={24} color="#6A1B9A" />
+          </View>
+          <Text style={styles.statValue}>
+            {loading ? '...' : `\u20B9${(stats.totalEarnings / 1000).toFixed(1)}K`}
           </Text>
           <Text style={styles.statLabel}>Earnings</Text>
         </View>
@@ -178,7 +198,7 @@ const TransportDashboard = ({ navigation }) => {
           <TouchableOpacity
             key={index}
             style={[styles.featureCard, { borderColor: feature.color + '30' }]}
-            onPress={() => navigation.navigate(feature.screen)}
+            onPress={() => openFeature(feature.screen)}
           >
             <View style={[styles.featureIcon, { backgroundColor: feature.color + '15' }]}>
               <MaterialIcons name={feature.icon} size={28} color={feature.color} />
@@ -187,7 +207,7 @@ const TransportDashboard = ({ navigation }) => {
             <Text style={styles.featureDescription}>{feature.description}</Text>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: feature.color }]}
-              onPress={() => navigation.navigate(feature.screen)}
+              onPress={() => openFeature(feature.screen)}
             >
               <Text style={styles.actionButtonText}>
                 {feature.title === t('transporter.dashboard.availableOrders')

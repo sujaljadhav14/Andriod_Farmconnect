@@ -12,6 +12,19 @@ const translations = {
     mr,
 };
 
+const interpolate = (value, params = {}) => {
+    if (typeof value !== 'string') {
+        return value;
+    }
+
+    return value.replace(/\{\{(\w+)\}\}/g, (_, token) => {
+        const replacement = params[token];
+        return replacement === undefined || replacement === null
+            ? `{{${token}}}`
+            : String(replacement);
+    });
+};
+
 export const LanguageProvider = ({ children }) => {
     const [language, setLanguage] = useState('en');
 
@@ -39,9 +52,9 @@ export const LanguageProvider = ({ children }) => {
         }
     };
 
-    const t = (key) => {
+    const t = (key, params = {}) => {
         const keys = key.split('.');
-        let value = translations[language];
+        let value = translations[language] ?? translations.en;
 
         for (const k of keys) {
             value = value?.[k];
@@ -50,7 +63,7 @@ export const LanguageProvider = ({ children }) => {
             }
         }
 
-        return value || key;
+        return interpolate(value, params) || key;
     };
 
     return (

@@ -1,162 +1,48 @@
-﻿# FarmConnect React Native - Setup Guide
+# Setup Guide
 
-## âœ… Completed Setup
+This project currently runs as an Expo preview app on the `main` branch.
 
-### 1. Project Structure
-- âœ… React Native project initialized
-- âœ… Navigation structure (React Navigation)
-- âœ… Context providers (Auth, Language)
-- âœ… API service configuration
-- âœ… Constants and utilities
+## Requirements
 
-### 2. Authentication Screens
-- âœ… Login Screen (Phone + Password)
-- âœ… Register Screen
-- âœ… OTP Login Screen
-- âœ… Splash Screen
-- âœ… Home Screen
+- Node.js 18 or newer
+- npm
+- Expo-compatible Android emulator, iOS simulator, or Expo Go
 
-### 3. Navigation Structure
-- âœ… Auth Navigator (Login, Register, OTP)
-- âœ… Role-based Navigators (Farmer, Trader, Transport, Admin)
-- âœ… Bottom Tab Navigation for each role
-- âœ… Stack Navigation for nested screens
+## Install
 
-### 4. Dashboard Screens (Placeholders)
-- âœ… Farmer Dashboard
-- âœ… Trader Dashboard
-- âœ… Transport Dashboard
-- âœ… Admin Dashboard
-
-## ðŸ“‹ Next Steps
-
-### Immediate Actions Required:
-
-1. **Copy Translation Files**
-   - Copy `en.json`, `hi.json`, `mr.json` from:
-     `../FarmConnect-WebApp/frontend/src/translations/`
-   - To: `src/translations/`
-
-2. **Install Dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Android Setup**
-   - Ensure Android Studio is installed
-   - Set up Android SDK
-   - Create Android emulator or connect physical device
-
-4. **Backend Configuration**
-   - Update API_BASE_URL in `src/services/api.js`
-   - Ensure backend server is running
-   - Default: `http://localhost:8080/api`
-
-### Phase 2: Feature Implementation
-
-1. **Farmer Features**
-   - [ ] Add Crop Screen (with image picker)
-   - [ ] My Crops List Screen
-   - [ ] Crop Details Screen
-   - [ ] Order Management
-   - [ ] Weather Integration
-   - [ ] Market Prices
-   - [ ] Community Forum
-
-2. **Trader Features**
-   - [ ] Browse Crops Screen (with filters)
-   - [ ] Crop Details View
-   - [ ] Make Proposal Screen
-   - [ ] Order Tracking
-   - [ ] Analytics Dashboard
-
-3. **Transport Features**
-   - [ ] Vehicle Management (Add/Edit)
-   - [ ] Available Orders List
-   - [ ] Delivery Tracking
-   - [ ] Route Planning
-   - [ ] Earnings Dashboard
-
-4. **Common Features**
-   - [ ] KYC Verification Screens (all roles)
-   - [ ] Profile Management
-   - [ ] Settings Screen
-   - [ ] Notifications
-
-### Phase 3: Advanced Features
-
-1. **Real-time Updates**
-   - [ ] Socket.IO integration
-   - [ ] Push notifications
-   - [ ] Live order tracking
-
-2. **Media Handling**
-   - [ ] Image picker for crops
-   - [ ] Document upload for KYC
-   - [ ] PDF viewer for agreements
-
-3. **Maps Integration**
-   - [ ] Location picker
-   - [ ] Route visualization
-   - [ ] Delivery tracking map
-
-## ðŸ”§ Configuration
-
-### API Configuration
-Update `src/services/api.js`:
-```javascript
-const API_BASE_URL = 'http://YOUR_BACKEND_URL/api';
+```bash
+npm install
 ```
 
-### Environment Variables
-Create `.env` file:
+## Start The App
+
+```bash
+npx expo start
 ```
-API_BASE_URL=http://localhost:8080/api
-SOCKET_URL=http://localhost:8080
+
+Optional shortcuts:
+
+```bash
+npm run android
+npm run ios
+npm run web
 ```
 
-## ðŸ“± Running the App
+## What To Expect On `main`
 
-1. **Start Metro Bundler**
-   ```bash
-   npm start
-   ```
+- A role picker landing screen
+- Preview flows for farmer, trader, and transporter roles
+- Local language persistence via AsyncStorage
+- Mock data in most dashboards and screens
+- A crop service layer with demo fallback for farmer crop flows
+- An optional backend prototype under `backend/`
 
-2. **Run on Android**
-   ```bash
-   npm run android
-   ```
+## What Is Not On `main`
 
-3. **Run on iOS** (if configured)
-   ```bash
-   npm run ios
-   ```
+- Production login or OTP auth
+- Real-time Socket.IO integration
+- A production-ready backend deployment
 
-## ðŸ› Troubleshooting
+## Branch-Specific Note
 
-### Common Issues:
-
-1. **Translation files missing**
-   - Copy translation files from web app
-   - Ensure files are in `src/translations/`
-
-2. **API connection errors**
-   - Check backend server is running
-   - Verify API_BASE_URL is correct
-   - Check network connectivity
-
-3. **Navigation errors**
-   - Ensure all screen components exist
-   - Check navigation imports
-
-4. **Build errors**
-   - Run `cd android && ./gradlew clean`
-   - Clear Metro cache: `npm start -- --reset-cache`
-
-## ðŸ“š Resources
-
-- React Native Docs: https://reactnative.dev/docs/getting-started
-- React Navigation: https://reactnavigation.org/
-- Backend API: See `../FarmConnect-WebApp/backend/`
-
-
+`origin/mahek-dev` introduced the crop backend spike. Current `main` now includes a cleaned version of that work, but the original branch is still an older divergence point and should not be merged blindly.

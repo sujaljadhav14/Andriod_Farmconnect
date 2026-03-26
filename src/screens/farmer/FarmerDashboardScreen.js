@@ -105,7 +105,7 @@ const FarmerDashboardScreen = ({ navigation }) => {
     {
       title: t('farmer.dashboard.marketPrices'),
       description: t('farmer.dashboard.marketPricesDescription'),
-      icon: 'show_chart',
+      icon: 'bar-chart',
       color: '#6A1B9A',
       screen: 'MarketPrices',
     },
@@ -169,7 +169,11 @@ const FarmerDashboardScreen = ({ navigation }) => {
               <MaterialIcons name={stat.icon} size={24} color={stat.color} />
             </View>
             <Text style={styles.statValue}>
-              {loading ? '...' : stat.value}
+              {loading
+                ? '...'
+                : stat.icon === 'account-balance-wallet'
+                ? `\u20B9${(stats.totalEarnings / 1000).toFixed(1)}L`
+                : stat.value}
             </Text>
             <Text style={styles.statLabel}>{stat.title}</Text>
           </View>

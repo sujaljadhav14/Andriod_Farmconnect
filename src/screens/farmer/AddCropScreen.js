@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
+import { addCrop, isCropApiConfigured } from '../../services/cropService';
 
 const categories = ['Grains', 'Vegetables', 'Fruits', 'Pulses', 'Spices'];
 const qualities = ['A+', 'A', 'B', 'C'];
@@ -20,18 +21,61 @@ const AddCropScreen = ({ navigation }) => {
   const [quantity, setQuantity] = useState('');
   const [price, setPrice] = useState('');
   const [quality, setQuality] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = () => {
-    Alert.alert(
-      'Crop Added (Demo)',
-      `${name || 'Unnamed'} - ${quantity}kg at \u20B9${price}/kg\nThis is a demo. No data is saved.`,
-      [{ text: 'OK', onPress: () => navigation.goBack() }]
-    );
+  const handleSubmit = async () => {
+    if (!name.trim() || !category || !quantity || !price || !quality) {
+      Alert.alert('Missing Details', 'Fill in all crop fields before submitting.');
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const result = await addCrop({
+        name,
+        category,
+        quantity,
+        price,
+        quality,
+      });
+
+      const successTitle = result.mode === 'remote' ? 'Crop Added' : 'Crop Added (Demo)';
+      const successMessage =
+        result.mode === 'remote'
+          ? `${name.trim()} was saved to the crop backend.`
+          : `${name.trim()} was saved in demo mode. Configure the crop API URL in src/services/cropService.js to use the backend.`;
+
+      Alert.alert(successTitle, successMessage, [
+        {
+          text: 'OK',
+          onPress: () => navigation.goBack(),
+        },
+      ]);
+    } catch (error) {
+      console.error('Failed to add crop:', error);
+      Alert.alert('Save Failed', 'The crop could not be saved.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.form}>
+        <View style={styles.banner}>
+          <MaterialIcons
+            name={isCropApiConfigured() ? 'cloud-done' : 'science'}
+            size={18}
+            color={Colors.primary}
+          />
+          <Text style={styles.bannerText}>
+            {isCropApiConfigured()
+              ? 'Crop API is configured for this app session.'
+              : 'Crop API is not configured. Submissions currently save to demo memory only.'}
+          </Text>
+        </View>
+
         <Text style={styles.label}>Crop Name</Text>
         <TextInput
           style={styles.input}
@@ -89,9 +133,16 @@ const AddCropScreen = ({ navigation }) => {
           ))}
         </View>
 
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-          <MaterialIcons name="add-circle" size={22} color={Colors.white} />
-          <Text style={styles.submitText}>Add Crop</Text>
+        <TouchableOpacity
+          style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
+          onPress={handleSubmit}
+          disabled={submitting}>
+          <MaterialIcons
+            name={submitting ? 'hourglass-top' : 'add-circle'}
+            size={22}
+            color={Colors.white}
+          />
+          <Text style={styles.submitText}>{submitting ? 'Saving Crop...' : 'Add Crop'}</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -105,6 +156,21 @@ const styles = StyleSheet.create({
   },
   form: {
     padding: 20,
+  },
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary + '10',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+  },
+  bannerText: {
+    flex: 1,
+    marginLeft: 8,
+    color: Colors.text,
+    fontSize: 13,
+    lineHeight: 18,
   },
   label: {
     fontSize: 14,
@@ -155,6 +221,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 32,
+  },
+  submitButtonDisabled: {
+    opacity: 0.7,
   },
   submitText: {
     color: Colors.white,

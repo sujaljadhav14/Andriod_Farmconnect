@@ -52,7 +52,7 @@ const TraderDashboardScreen = ({ navigation }) => {
     {
       title: t('trader.dashboard.marketAnalytics'),
       description: t('trader.dashboard.marketAnalyticsDescription'),
-      icon: 'show_chart',
+      icon: 'bar-chart',
       color: '#6A1B9A',
       screen: 'Analytics',
     },
