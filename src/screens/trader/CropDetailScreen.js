@@ -16,7 +16,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import Colors from '../../constants/colors';
+import { Colors } from '../../constants/colors';
 import cropService from '../../services/cropService';
 import { LoadingSpinner, StatusBadge } from '../../components/common';
 import { formatCurrency, formatDate } from '../../utils/formatters';

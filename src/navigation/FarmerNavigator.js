@@ -9,6 +9,7 @@ import MyCropsScreen from '../screens/farmer/MyCropsScreen';
 import AddCropScreen from '../screens/farmer/AddCropScreen';
 import MyOrdersScreen from '../screens/farmer/MyOrdersScreen';
 import ReceivedProposalsScreen from '../screens/farmer/ReceivedProposalsScreen';
+import OrderDetailScreen from '../screens/common/OrderDetailScreen';
 import WeatherScreen from '../screens/farmer/WeatherScreen';
 import BankDetailsScreen from '../screens/farmer/BankDetailsScreen';
 import MarketPricesScreen from '../screens/farmer/MarketPricesScreen';
@@ -31,6 +32,7 @@ const FarmerHomeStack = () => {
       <Stack.Screen name="AddCrop" component={AddCropScreen} options={{ title: 'Add New Crop' }} />
       <Stack.Screen name="MyCrops" component={MyCropsScreen} options={{ title: 'My Crops' }} />
       <Stack.Screen name="MyOrders" component={MyOrdersScreen} options={{ title: 'My Orders' }} />
+      <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={{ title: 'Order Details' }} />
       <Stack.Screen name="ReceivedProposals" component={ReceivedProposalsScreen} options={{ title: 'Proposals Received' }} />
       <Stack.Screen name="Weather" component={WeatherScreen} options={{ title: 'Weather' }} />
       <Stack.Screen name="MarketPrices" component={MarketPricesScreen} options={{ title: 'Market Prices' }} />

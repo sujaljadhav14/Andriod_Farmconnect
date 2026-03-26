@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
-import Colors from '../../constants/colors';
+import { Colors } from '../../constants/colors';
 import cropService from '../../services/cropService';
 import { LoadingSpinner, StatusBadge } from '../../components/common';
 import { formatCurrency } from '../../utils/formatters';

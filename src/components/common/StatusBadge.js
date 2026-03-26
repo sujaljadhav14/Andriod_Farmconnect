@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Colors from '../../constants/colors';
+import { Colors } from '../../constants/colors';
 
 const StatusBadge = ({ status, size = 'medium', style }) => {
   const getStatusConfig = (statusText) => {

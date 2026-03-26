@@ -10,6 +10,7 @@ import CropDetailScreen from '../screens/trader/CropDetailScreen';
 import CreateProposalScreen from '../screens/trader/CreateProposalScreen';
 import MyOrdersScreen from '../screens/trader/MyOrdersScreen';
 import MyProposalsScreen from '../screens/trader/MyProposalsScreen';
+import OrderDetailScreen from '../screens/common/OrderDetailScreen';
 import KYCScreen from '../screens/trader/KYCScreen';
 import PaymentsScreen from '../screens/trader/PaymentsScreen';
 import AnalyticsScreen from '../screens/trader/AnalyticsScreen';
@@ -33,6 +34,20 @@ const BrowseStack = () => {
   );
 };
 
+const MyOrdersStack = () => {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: '#E65100' },
+        headerTintColor: Colors.white,
+        headerTitleStyle: { fontWeight: '600' },
+      }}>
+      <Stack.Screen name="MyOrdersList" component={MyOrdersScreen} options={{ title: 'My Orders' }} />
+      <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={{ title: 'Order Details' }} />
+    </Stack.Navigator>
+  );
+};
+
 const DashboardStack = () => {
   return (
     <Stack.Navigator
@@ -48,6 +63,7 @@ const DashboardStack = () => {
       <Stack.Screen name="CreateProposal" component={CreateProposalScreen} options={{ title: 'Make Proposal' }} />
       <Stack.Screen name="MyProposals" component={MyProposalsScreen} options={{ title: 'My Proposals' }} />
       <Stack.Screen name="MyOrders" component={MyOrdersScreen} options={{ title: 'My Orders' }} />
+      <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={{ title: 'Order Details' }} />
       <Stack.Screen name="Payments" component={PaymentsScreen} options={{ title: 'Payments' }} />
       <Stack.Screen name="Analytics" component={AnalyticsScreen} options={{ title: 'Market Analytics' }} />
       <Stack.Screen name="FarmerNetwork" component={FarmerNetworkScreen} options={{ title: 'Farmer Network' }} />
@@ -94,13 +110,10 @@ const TraderNavigator = () => {
       />
       <Tab.Screen
         name="MyOrders"
-        component={MyOrdersScreen}
+        component={MyOrdersStack}
         options={{
           tabBarLabel: 'Orders',
-          headerShown: true,
-          headerTitle: 'My Orders',
-          headerStyle: { backgroundColor: '#E65100' },
-          headerTintColor: Colors.white,
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="receipt-long" size={size} color={color} />
           ),

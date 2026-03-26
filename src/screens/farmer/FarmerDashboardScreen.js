@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
-import Colors from '../../constants/colors';
+import { Colors } from '../../constants/colors';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
 import cropService from '../../services/cropService';

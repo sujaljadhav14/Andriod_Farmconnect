@@ -7,7 +7,7 @@ import RolePickerScreen from '../screens/RolePickerScreen';
 import FarmerNavigator from './FarmerNavigator';
 import TraderNavigator from './TraderNavigator';
 import TransportNavigator from './TransportNavigator';
-import Colors from '../constants/colors';
+import { Colors } from '../constants/colors';
 
 const Stack = createNativeStackNavigator();
 

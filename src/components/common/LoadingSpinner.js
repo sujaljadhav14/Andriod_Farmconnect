@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { View, ActivityIndicator, StyleSheet, Text, Modal } from 'react-native';
-import Colors from '../../constants/colors';
+import { Colors } from '../../constants/colors';
 
 const LoadingSpinner = ({
   visible = true,

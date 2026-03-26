@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
-import Colors from '../../constants/colors';
+import { Colors } from '../../constants/colors';
 import proposalService from '../../services/proposalService';
 import { LoadingSpinner } from '../../components/common';
 import { formatCurrency, formatDate } from '../../utils/formatters';

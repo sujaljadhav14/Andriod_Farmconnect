@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import Colors from '../../constants/colors';
+import { Colors } from '../../constants/colors';
 
 const Button = ({
   title,

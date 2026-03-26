@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import Colors from '../../constants/colors';
+import { Colors } from '../../constants/colors';
 import cropService from '../../services/cropService';
 import uploadService from '../../services/uploadService';
 import { Button, LoadingSpinner } from '../../components/common';

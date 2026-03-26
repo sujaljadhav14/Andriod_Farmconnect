@@ -4,7 +4,7 @@ import { StatusBar } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { AppProvider } from './context/AppProvider';
 import AppNavigator from './navigation/AppNavigator';
-import Colors from './constants/colors';
+import { Colors } from './constants/colors';
 
 const App = () => {
   return (

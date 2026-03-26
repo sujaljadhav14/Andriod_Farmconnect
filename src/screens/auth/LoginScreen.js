@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { Button, Input, LoadingSpinner } from '../../components/common';
-import Colors from '../../constants/colors';
+import { Colors } from '../../constants/colors';
 import { validatePhone, validatePassword } from '../../utils/validation';
 
 const LoginScreen = ({ navigation }) => {

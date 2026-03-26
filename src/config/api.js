@@ -7,10 +7,10 @@
 // For Android emulator: use 10.0.2.2 instead of localhost
 // For iOS simulator: use localhost
 // For physical device: use your PC's local IP address
-export const API_BASE_URL = 'http://10.0.2.2:8080';
+export const API_BASE_URL = 'http://192.168.0.103:5050';
 
 // Socket.IO URL (same as API base)
-export const SOCKET_URL = 'http://10.0.2.2:8080';
+export const SOCKET_URL = 'http://192.168.0.103:5050';
 
 // API Endpoints
 export const API_ENDPOINTS = {

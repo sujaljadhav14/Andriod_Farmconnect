@@ -17,7 +17,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { Button, Input, LoadingSpinner } from '../../components/common';
-import Colors from '../../constants/colors';
+import { Colors } from '../../constants/colors';
 import { validatePhone, validatePassword, validateName } from '../../utils/validation';
 import { USER_ROLES } from '../../config/constants';
 

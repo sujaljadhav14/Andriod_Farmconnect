@@ -17,7 +17,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { Button, LoadingSpinner } from '../../components/common';
-import Colors from '../../constants/colors';
+import { Colors } from '../../constants/colors';
 import { OTP } from '../../config/constants';
 
 const OTPVerificationScreen = ({ navigation, route }) => {

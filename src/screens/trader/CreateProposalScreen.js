@@ -18,7 +18,7 @@ import {
   Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import Colors from '../../constants/colors';
+import { Colors } from '../../constants/colors';
 import proposalService from '../../services/proposalService';
 import { Button, LoadingSpinner } from '../../components/common';
 import { formatCurrency } from '../../utils/formatters';
