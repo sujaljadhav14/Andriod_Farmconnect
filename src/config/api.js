@@ -3,14 +3,19 @@
  * Central configuration for API endpoints and URLs
  */
 
-// Backend API Base URL
-// For Android emulator: use 10.0.2.2 instead of localhost
-// For iOS simulator: use localhost
-// For physical device: use your PC's local IP address
-export const API_BASE_URL = 'http://192.168.0.103:5050';
+// ============================================================
+// ⚠️  IMPORTANT: UPDATE THIS IP WHEN YOUR WIFI CHANGES! ⚠️
+// Run `ipconfig` in cmd and look for "IPv4 Address" under
+// your active WiFi adapter. Replace the IP below.
+// ============================================================
+// For Android emulator: use http://10.0.2.2:5050
+// For iOS simulator:    use http://localhost:5050
+// For physical device:  use your PC's LAN IP (e.g. 192.168.x.x)
+
+export const API_BASE_URL = 'http://192.168.0.103:5050'; // <-- UPDATE THIS IP
 
 // Socket.IO URL (same as API base)
-export const SOCKET_URL = 'http://192.168.0.103:5050';
+export const SOCKET_URL = 'http://192.168.0.103:5050'; // <-- UPDATE THIS IP
 
 // API Endpoints
 export const API_ENDPOINTS = {
@@ -20,7 +25,7 @@ export const API_ENDPOINTS = {
     LOGIN: '/api/auth/login',
     SEND_OTP: '/api/auth/send-otp',
     VERIFY_OTP: '/api/auth/verify-otp',
-    PROFILE: '/api/auth/profile',
+    PROFILE: '/api/auth/me', // Backend route is /me, not /profile
     UPDATE_BANK: '/api/auth/update-bank-details',
     SUBMIT_KYC: '/api/auth/submit-kyc',
     MY_KYC: '/api/auth/my-kyc',

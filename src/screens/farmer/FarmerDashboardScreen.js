@@ -28,7 +28,7 @@ import { formatCurrency } from '../../utils/formatters';
 
 const FarmerDashboardScreen = ({ navigation }) => {
   const { t } = useLanguage();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const isFocused = useIsFocused();
   const [stats, setStats] = useState({
     totalCrops: 0,
@@ -224,10 +224,16 @@ const FarmerDashboardScreen = ({ navigation }) => {
         <View style={styles.welcomeContent}>
           <Text style={styles.welcomeText}>{t('farmer.dashboard.welcome')}</Text>
           <Text style={styles.nameText}>{user?.name || 'Farmer'}</Text>
+          <Text style={styles.roleText}>🌾 Farmer</Text>
         </View>
-        <TouchableOpacity onPress={() => navigation.navigate('Notifications')}>
-          <MaterialIcons name="notifications-none" size={28} color="#FFFFFF" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity onPress={() => navigation.navigate('Notifications')} style={styles.headerIcon}>
+            <MaterialIcons name="notifications-none" size={26} color="#FFFFFF" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={logout} style={styles.headerIcon}>
+            <MaterialIcons name="power-settings-new" size={26} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Stats Grid */}
@@ -445,6 +451,20 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
     marginTop: 4,
+  },
+  roleText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    opacity: 0.8,
+    marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerIcon: {
+    padding: 4,
   },
   statsGrid: {
     flexDirection: 'row',

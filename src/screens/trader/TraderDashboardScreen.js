@@ -26,7 +26,7 @@ import { formatCurrency } from '../../utils/formatters';
 
 const TraderDashboardScreen = ({ navigation }) => {
   const { t } = useLanguage();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const isFocused = useIsFocused();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -176,12 +176,22 @@ const TraderDashboardScreen = ({ navigation }) => {
     >
       {/* Welcome Section */}
       <View style={styles.welcomeSection}>
-        <Text style={styles.welcomeTitle}>
-          {t('trader.dashboard.title')}{user?.name ? `, ${user.name}` : ''}
-        </Text>
-        <Text style={styles.welcomeDescription}>
-          {t('trader.dashboard.description')}
-        </Text>
+        <View style={styles.welcomeRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.welcomeTitle}>
+              {t('trader.dashboard.title')}{user?.name ? `, ${user.name}` : ''}
+            </Text>
+            <Text style={styles.roleText}>🏪 Trader</Text>
+            <Text style={styles.welcomeDescription}>
+              {t('trader.dashboard.description')}
+            </Text>
+          </View>
+          <View style={styles.headerActions}>
+            <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
+              <MaterialIcons name="power-settings-new" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
 
       {/* Stats Cards */}
@@ -317,16 +327,35 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 16,
   },
+  welcomeRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
   welcomeTitle: {
     fontSize: 22,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    marginBottom: 8,
+    marginBottom: 4,
+  },
+  roleText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    opacity: 0.85,
+    marginBottom: 6,
   },
   welcomeDescription: {
     fontSize: 14,
     color: '#FFFFFF',
     opacity: 0.9,
+  },
+  headerActions: {
+    marginLeft: 8,
+    marginTop: 4,
+  },
+  logoutBtn: {
+    padding: 6,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   statsContainer: {
     paddingHorizontal: 16,

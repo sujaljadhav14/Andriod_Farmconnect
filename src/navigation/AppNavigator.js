@@ -38,7 +38,9 @@ const AppNavigator = () => {
       case 'transport':
         return 'TransportMain';
       case 'admin':
-        return 'AdminMain';
+        // AdminMain navigator not yet implemented – fall back to RolePicker
+        // TODO: create AdminNavigator and add AdminMain screen here
+        return 'RolePicker';
       default:
         return 'RolePicker';
     }

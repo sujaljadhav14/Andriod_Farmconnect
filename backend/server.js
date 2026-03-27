@@ -349,13 +349,48 @@ app.post('/api/crops/add', authenticateToken, upload.array('images', 5), async (
       pincode,
     } = req.body;
 
+    console.log('📝 Add Crop Request:', {
+      userId: req.user._id,
+      userName: req.user.name,
+      cropName,
+      category,
+      quantity,
+      unit,
+      price,
+      qualityGrade,
+      hasImages: !!req.files && req.files.length > 0,
+      imageCount: req.files ? req.files.length : 0,
+    });
+
     // Validation
     if (!cropName || !category || !quantity || !unit || !price || !qualityGrade || !harvestDate) {
-      return res.status(400).json({ message: 'Required fields missing' });
+      console.warn('⚠️ Missing required fields:', {
+        cropName: !!cropName,
+        category: !!category,
+        quantity: !!quantity,
+        unit: !!unit,
+        price: !!price,
+        qualityGrade: !!qualityGrade,
+        harvestDate: !!harvestDate,
+      });
+      return res.status(400).json({ 
+        message: 'Required fields missing',
+        missing: {
+          cropName: !cropName,
+          category: !category,
+          quantity: !quantity,
+          unit: !unit,
+          price: !price,
+          qualityGrade: !qualityGrade,
+          harvestDate: !harvestDate,
+        }
+      });
     }
 
     // Process uploaded images
     const images = req.files ? req.files.map(file => `/uploads/${file.filename}`) : [];
+
+    console.log('🖼️ Images mapped:', images);
 
     // Create crop
     const crop = new Crop({
@@ -382,16 +417,26 @@ app.post('/api/crops/add', authenticateToken, upload.array('images', 5), async (
       minOrderQuantity: Number(minOrderQuantity) || 1,
     });
 
-    await crop.save();
+    const savedCrop = await crop.save();
+    console.log('✅ Crop saved successfully:', savedCrop._id);
 
     res.status(201).json({
       success: true,
       message: 'Crop added successfully',
-      data: crop,
+      data: savedCrop,
     });
   } catch (error) {
-    console.error('Add crop error:', error);
-    res.status(500).json({ message: 'Failed to add crop', error: error.message });
+    console.error('❌ Add crop error:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      name: error.name,
+    });
+    res.status(500).json({ 
+      message: 'Failed to add crop', 
+      error: error.message,
+      details: error.message.includes('Cast') ? 'Invalid data format' : undefined
+    });
   }
 });
 

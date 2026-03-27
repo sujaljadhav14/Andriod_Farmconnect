@@ -19,7 +19,7 @@ class SocketService {
    */
   async connect() {
     if (this.socket && this.isConnected) {
-      console.log('Socket already connected');
+      console.log('✅ Socket already connected');
       return;
     }
 
@@ -34,32 +34,36 @@ class SocketService {
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
-        reconnectionAttempts: 5,
+        reconnectionAttempts: 3, // Reduced from 5 to 3
       });
 
       this.setupDefaultListeners();
 
       return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
-          reject(new Error('Socket connection timeout'));
-        }, 10000);
+          console.warn('⚠️ Socket connection timeout - backend may not have Socket.IO configured');
+          // Don't reject, just warn - the app should still work with HTTP APIs
+          resolve(); 
+        }, 5000); // Reduced from 10000 to 5000
 
         this.socket.on(SOCKET_EVENTS.CONNECT, () => {
           clearTimeout(timeout);
           this.isConnected = true;
-          console.log('Socket connected:', this.socket.id);
+          console.log('✅ Socket connected:', this.socket.id);
           resolve();
         });
 
         this.socket.on('connect_error', (error) => {
           clearTimeout(timeout);
-          console.error('Socket connection error:', error);
-          reject(error);
+          console.warn('⚠️ Socket connection error:', error?.message || error);
+          // Don't reject - the app should work without Socket.IO
+          // Just resolve after a timeout to continue the app flow
+          this.isConnected = false;
         });
       });
     } catch (error) {
-      console.error('Error connecting socket:', error);
-      throw error;
+      console.warn('⚠️ Error connecting socket:', error?.message || error);
+      // Don't throw - socket is optional
     }
   }
 
@@ -84,12 +88,12 @@ class SocketService {
 
     this.socket.on(SOCKET_EVENTS.CONNECT, () => {
       this.isConnected = true;
-      console.log('Socket connected');
+      console.log('✅ Socket connected');
     });
 
     this.socket.on(SOCKET_EVENTS.DISCONNECT, (reason) => {
       this.isConnected = false;
-      console.log('Socket disconnected:', reason);
+      console.warn('⚠️ Socket disconnected:', reason);
 
       // Auto-reconnect if disconnect was unexpected
       if (reason === 'io server disconnect') {
@@ -98,24 +102,31 @@ class SocketService {
     });
 
     this.socket.on('error', (error) => {
-      console.error('Socket error:', error);
+      console.error('❌ Socket error:', error?.message || error);
     });
 
     this.socket.on('reconnect', (attemptNumber) => {
-      console.log('Socket reconnected after', attemptNumber, 'attempts');
+      console.log('✅ Socket reconnected after', attemptNumber, 'attempts');
       this.isConnected = true;
     });
 
+    // Reduce log spam - only log on first attempt and failures
+    let reconnectAttemptCount = 0;
     this.socket.on('reconnect_attempt', (attemptNumber) => {
-      console.log('Socket reconnecting... Attempt', attemptNumber);
+      reconnectAttemptCount = attemptNumber;
+      // Only log every 5th attempt to reduce spam
+      if (attemptNumber % 5 === 1 || attemptNumber === 1) {
+        console.log('🔄 Socket reconnecting... Attempt', attemptNumber);
+      }
     });
 
     this.socket.on('reconnect_error', (error) => {
-      console.error('Socket reconnection error:', error);
+      // Only log errors, not every attempt
+      console.warn('⚠️ Socket reconnection error:', error?.message || error);
     });
 
     this.socket.on('reconnect_failed', () => {
-      console.error('Socket reconnection failed');
+      console.error('❌ Socket reconnection failed after', reconnectAttemptCount, 'attempts');
       this.isConnected = false;
     });
   }

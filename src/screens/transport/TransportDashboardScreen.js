@@ -4,9 +4,11 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  TouchableOpacity,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
+import { useAuth } from '../../context/AuthContext';
 
 const stats = [
   { label: 'Active Deliveries', value: '3', icon: 'local-shipping', color: '#1565C0' },
@@ -22,8 +24,20 @@ const activeDeliveries = [
 ];
 
 const TransportDashboardScreen = () => {
+  const { user, logout } = useAuth();
   return (
     <ScrollView style={styles.container}>
+      {/* Welcome Header */}
+      <View style={styles.welcomeCard}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.welcomeText}>Welcome,</Text>
+          <Text style={styles.nameText}>{user?.name || 'Transporter'}</Text>
+          <Text style={styles.roleText}>🚚 Transport</Text>
+        </View>
+        <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
+          <MaterialIcons name="power-settings-new" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
       <View style={styles.statsGrid}>
         {stats.map((stat, index) => (
           <View key={index} style={styles.statCard}>
@@ -69,6 +83,22 @@ const TransportDashboardScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
+  welcomeCard: {
+    backgroundColor: '#1565C0',
+    margin: 16,
+    padding: 20,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  welcomeText: { fontSize: 14, color: '#FFFFFF', opacity: 0.85 },
+  nameText: { fontSize: 22, fontWeight: 'bold', color: '#FFFFFF', marginTop: 2 },
+  roleText: { fontSize: 12, color: '#FFFFFF', opacity: 0.8, marginTop: 2 },
+  logoutBtn: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 12 },
   statCard: {
     width: '46%', backgroundColor: Colors.surface, borderRadius: 12, padding: 16, margin: '2%', alignItems: 'center',

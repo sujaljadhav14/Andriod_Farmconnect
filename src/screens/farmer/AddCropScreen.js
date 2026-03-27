@@ -19,6 +19,7 @@ import uploadService from '../../services/uploadService';
 import { Button, LoadingSpinner } from '../../components/common';
 import { CROP_CATEGORIES, QUALITY_GRADES, CROP_UNITS } from '../../config/constants';
 import { formatDate } from '../../utils/formatters';
+import apiService from '../../services/apiService';
 
 // Indian states list
 const INDIAN_STATES = [
@@ -150,6 +151,24 @@ const AddCropScreen = ({ navigation, route }) => {
     setCropImage(null);
   };
 
+  const testNetworkConnection = async () => {
+    console.log('🔍 Testing network connection...');
+
+    // Test basic connectivity
+    const healthCheck = await apiService.checkConnection();
+    console.log('Health check:', healthCheck);
+
+    // Test crops endpoint
+    const cropTest = await apiService.testEndpoint('/api/crops/available');
+    console.log('Crop endpoint test:', cropTest);
+
+    // Test with auth
+    const authTest = await apiService.testEndpoint('/api/crops/add', 'POST');
+    console.log('Add crop endpoint test:', authTest);
+
+    Alert.alert('Network Test', `Health: ${healthCheck}, Crops: ${cropTest.success}, Auth: ${authTest.success}`);
+  };
+
   const handleSubmit = async () => {
     if (!validateForm()) {
       Alert.alert('Missing Details', 'Please fill in all required fields.');
@@ -161,6 +180,14 @@ const AddCropScreen = ({ navigation, route }) => {
     try {
       const locationString = `${village}, ${tehsil}, ${district}, ${state} - ${pincode}`;
 
+      // Map frontend quality grades to backend enum values
+      const qualityGradeMap = {
+        'A+': 'Premium',
+        'A': 'Grade A',
+        'B': 'Grade B',
+        'C': 'Grade C',
+      };
+
       const cropData = {
         cropName: cropName.trim(),
         category,
@@ -170,7 +197,7 @@ const AddCropScreen = ({ navigation, route }) => {
         unit,
         pricePerUnit: parseFloat(pricePerUnit),
         expectedPricePerUnit: parseFloat(pricePerUnit),
-        quality,
+        quality: qualityGradeMap[quality] || quality, // Map to backend value
         landUnderCultivation: landUnderCultivation ? parseFloat(landUnderCultivation) : undefined,
         cultivationDate: cultivationDate ? cultivationDate.toISOString() : undefined,
         harvestDate: expectedHarvestDate.toISOString(),
@@ -188,12 +215,27 @@ const AddCropScreen = ({ navigation, route }) => {
       // Only pass image if it's a new image (not existing)
       const imageToUpload = cropImage && !cropImage.existing ? cropImage : null;
 
+      console.log('📝 Adding Crop with data:', {
+        cropName: cropData.cropName,
+        category: cropData.category,
+        quantity: cropData.quantity,
+        price: cropData.pricePerUnit,
+        qualityGrade: cropData.quality,
+        hasImage: !!imageToUpload,
+        imageUri: imageToUpload?.uri,
+        location: cropData.locationDetails,
+      });
+
       let response;
       if (isEditMode) {
+        console.log('📝 Updating crop:', editCrop.id);
         response = await cropService.updateCrop(editCrop.id, cropData, imageToUpload);
       } else {
+        console.log('📝 Creating new crop');
         response = await cropService.addCrop(cropData, imageToUpload);
       }
+
+      console.log('✅ Crop saved successfully:', response);
 
       Alert.alert(
         isEditMode ? 'Crop Updated' : 'Crop Added',
@@ -201,8 +243,16 @@ const AddCropScreen = ({ navigation, route }) => {
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
     } catch (error) {
-      console.error('Failed to save crop:', error);
-      Alert.alert('Error', error.message || 'Failed to save crop. Please try again.');
+      console.error('❌ Failed to save crop:', {
+        message: error.message,
+        stack: error.stack,
+        isNetworkError: error.message?.includes('Network'),
+      });
+      Alert.alert(
+        'Error',
+        error.message || 'Failed to save crop. Please try again.',
+        [{ text: 'OK' }]
+      );
     } finally {
       setSubmitting(false);
     }
@@ -222,13 +272,16 @@ const AddCropScreen = ({ navigation, route }) => {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 20}
     >
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        automaticallyAdjustKeyboardInsets={true}
+        contentInsetAdjustmentBehavior="automatic"
       >
         {/* Crop Information Section */}
         {renderSectionHeader('Crop Information', 'agriculture')}
@@ -504,6 +557,15 @@ const AddCropScreen = ({ navigation, route }) => {
 
         {/* Submit Button */}
         <Button
+          title="🔍 Test Network (Debug)"
+          onPress={testNetworkConnection}
+          variant="outline"
+          icon="network-check"
+          fullWidth
+          style={{ marginTop: 20 }}
+        />
+
+        <Button
           title={isEditMode ? 'Update Crop' : 'Add Crop'}
           onPress={handleSubmit}
           loading={submitting}
@@ -558,7 +620,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 120, // Increased from 40 to ensure submit button is always visible
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -773,7 +835,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   submitButton: {
-    marginTop: 32,
+    marginTop: 40, // Increased from 32 for more breathing room
+    marginBottom: 20, // Added bottom margin for extra space
   },
 });
 

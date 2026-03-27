@@ -35,6 +35,21 @@ class UploadService {
   }
 
   /**
+   * Helper to get proper MIME type from file extension
+   */
+  getMimeType(filename) {
+    const ext = filename?.toLowerCase().split('.').pop();
+    const mimeTypes = {
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'webp': 'image/webp',
+    };
+    return mimeTypes[ext] || 'image/jpeg';
+  }
+
+  /**
    * Pick image from camera
    */
   async pickImageFromCamera(options = {}) {
@@ -45,7 +60,7 @@ class UploadService {
 
     try {
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'images', // Expo SDK 54+: MediaType is a string, not MediaTypeOptions object
         allowsEditing: options.allowsEditing !== false,
         aspect: options.aspect || [4, 3],
         quality: options.quality || 0.8,
@@ -59,10 +74,12 @@ class UploadService {
           throw new Error(ERROR_MESSAGES.FILE_TOO_LARGE);
         }
 
+        const filename = asset.fileName || `photo_${Date.now()}.jpg`;
+        
         return {
           uri: asset.uri,
-          type: asset.type || 'image/jpeg',
-          name: asset.fileName || `photo_${Date.now()}.jpg`,
+          type: this.getMimeType(filename),
+          name: filename,
           fileSize: asset.fileSize,
           width: asset.width,
           height: asset.height,
@@ -80,14 +97,14 @@ class UploadService {
    * Pick image from gallery
    */
   async pickImageFromGallery(options = {}) {
-    const hasPermission = await this.requestMediaLibraryPermissionsAsync();
+    const hasPermission = await this.requestMediaLibraryPermissions();
     if (!hasPermission) {
       throw new Error(ERROR_MESSAGES.PERMISSION_DENIED);
     }
 
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'images', // Expo SDK 54+: MediaType is a string, not MediaTypeOptions object
         allowsEditing: options.allowsEditing !== false,
         allowsMultipleSelection: options.allowsMultipleSelection || false,
         aspect: options.aspect || [4, 3],
@@ -97,14 +114,17 @@ class UploadService {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         if (options.allowsMultipleSelection) {
-          return result.assets.map((asset) => ({
-            uri: asset.uri,
-            type: asset.type || 'image/jpeg',
-            name: asset.fileName || `photo_${Date.now()}.jpg`,
-            fileSize: asset.fileSize,
-            width: asset.width,
-            height: asset.height,
-          }));
+          return result.assets.map((asset) => {
+            const filename = asset.fileName || `photo_${Date.now()}.jpg`;
+            return {
+              uri: asset.uri,
+              type: this.getMimeType(filename),
+              name: filename,
+              fileSize: asset.fileSize,
+              width: asset.width,
+              height: asset.height,
+            };
+          });
         }
 
         const asset = result.assets[0];
@@ -114,10 +134,12 @@ class UploadService {
           throw new Error(ERROR_MESSAGES.FILE_TOO_LARGE);
         }
 
+        const filename = asset.fileName || `photo_${Date.now()}.jpg`;
+
         return {
           uri: asset.uri,
-          type: asset.type || 'image/jpeg',
-          name: asset.fileName || `photo_${Date.now()}.jpg`,
+          type: this.getMimeType(filename),
+          name: filename,
           fileSize: asset.fileSize,
           width: asset.width,
           height: asset.height,

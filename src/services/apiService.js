@@ -38,6 +38,13 @@ class APIService {
     const contentType = response.headers.get('content-type');
     const isJSON = contentType && contentType.includes('application/json');
 
+    console.log('🔍 Response Headers:', {
+      status: response.status,
+      statusText: response.statusText,
+      contentType: contentType,
+      isJSON: isJSON,
+    });
+
     if (response.status === 401) {
       // Unauthorized - clear auth and redirect to login
       await this.handleUnauthorized();
@@ -45,11 +52,33 @@ class APIService {
     }
 
     if (!response.ok) {
-      const error = isJSON ? await response.json() : { message: response.statusText };
-      throw new Error(error.message || ERROR_MESSAGES.SERVER_ERROR);
+      let errorMsg = response.statusText;
+      if (isJSON) {
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.message || errorData.error || response.statusText;
+          console.error('📄 JSON Error Response:', errorData);
+        } catch (e) {
+          console.error('Failed to parse JSON error:', e);
+          errorMsg = await response.text();
+        }
+      } else {
+        try {
+          errorMsg = await response.text();
+          console.error('📄 Text Error Response:', errorMsg);
+        } catch (e) {
+          console.error('Failed to read response text:', e);
+          errorMsg = response.statusText;
+        }
+      }
+      throw new Error(errorMsg || ERROR_MESSAGES.SERVER_ERROR);
     }
 
-    return isJSON ? await response.json() : await response.text();
+    if (isJSON) {
+      return await response.json();
+    } else {
+      return await response.text();
+    }
   }
 
   /**
@@ -118,10 +147,24 @@ class APIService {
       // Retry only for retriable errors
       return await requestFn();
     } catch (error) {
-      console.error(`API Error [${endpoint}]:`, error);
+      console.error(`API Error [${endpoint}]:`, {
+        url: `${this.baseURL}${endpoint}`,
+        method: options.method || 'GET',
+        error: error.message,
+        type: error.name,
+        isNetworkError: error.message === 'Network request failed' || error.name === 'TypeError',
+        stack: error.stack
+      });
 
       // Check if error is network-related
-      if (!error.message || error.message === 'Network request failed') {
+      if (!error.message || error.message === 'Network request failed' || error.name === 'TypeError') {
+        console.error('🚨 Network Error Details:', {
+          baseURL: this.baseURL,
+          endpoint,
+          fullURL: `${this.baseURL}${endpoint}`,
+          isMultipart: options.isMultipart,
+          hasFormData: options.body instanceof FormData
+        });
         throw new Error(ERROR_MESSAGES.NETWORK_ERROR);
       }
 
@@ -181,11 +224,84 @@ class APIService {
    * Upload file (multipart/form-data)
    */
   async upload(endpoint, formData) {
-    return this.request(endpoint, {
-      method: 'POST',
-      body: formData,
-      isMultipart: true,
+    console.log('📤 Upload Request:', {
+      endpoint,
+      url: `${this.baseURL}${endpoint}`,
+      formDataKeys: formData._parts ? formData._parts.map(part => part[0]) : 'No _parts found'
     });
+
+    try {
+      const token = await storageService.getToken();
+      console.log('🔐 Auth Token Present:', !!token);
+      
+      if (!token) {
+        console.warn('⚠️ No auth token found - request will fail authentication');
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+      try {
+        console.log('🌐 Sending fetch request to:', `${this.baseURL}${endpoint}`);
+        
+        const response = await fetch(`${this.baseURL}${endpoint}`, {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+          },
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+        
+        console.log('📥 Response received:', {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+          contentType: response.headers.get('content-type'),
+        });
+        
+        const result = await this.handleResponse(response);
+        console.log('✅ Upload Success:', result);
+        return result;
+      } catch (error) {
+        clearTimeout(timeoutId);
+        console.error('💥 Fetch/Response error:', {
+          name: error.name,
+          message: error.message,
+          code: error.code,
+          stack: error.stack,
+        });
+        throw error;
+      }
+    } catch (error) {
+      console.error('❌ Upload Failed:', {
+        endpoint,
+        errorName: error?.name,
+        errorMessage: error?.message,
+        errorCode: error?.code,
+        responseStatus: error?.status,
+        isNetworkError: error?.name === 'TypeError' || error?.message?.includes('Network'),
+      });
+      
+      // Log full error object for debugging
+      console.error('💾 Full error object:', JSON.stringify({
+        ...error,
+        name: error?.name,
+        message: error?.message,
+        code: error?.code,
+      }, null, 2));
+      
+      // Re-throw with more informative error message
+      if (!error?.message) {
+        throw new Error('Upload failed: Unknown error occurred');
+      }
+      if (error.message === 'Network request failed' || error.name === 'TypeError') {
+        throw new Error('Network error. Please check your connection and try again.');
+      }
+      throw error;
+    }
   }
 
   /**
@@ -225,6 +341,51 @@ class APIService {
     } catch (error) {
       console.error('Connection check failed:', error);
       return false;
+    }
+  }
+
+  /**
+   * Test specific API endpoint connectivity
+   */
+  async testEndpoint(endpoint, method = 'GET') {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    try {
+      console.log(`🔍 Testing endpoint: ${method} ${this.baseURL}${endpoint}`);
+
+      const headers = await this.getHeaders();
+      const response = await fetch(`${this.baseURL}${endpoint}`, {
+        method,
+        headers,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      console.log(`✅ Endpoint test result:`, {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+
+      return {
+        success: response.ok,
+        status: response.status,
+        statusText: response.statusText
+      };
+    } catch (error) {
+      clearTimeout(timeoutId);
+      console.error(`❌ Endpoint test failed:`, {
+        endpoint,
+        error: error.message,
+        type: error.name
+      });
+      return {
+        success: false,
+        error: error.message
+      };
     }
   }
 }

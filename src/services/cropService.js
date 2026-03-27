@@ -50,40 +50,61 @@ class CropService {
    * Add a new crop (farmer only)
    */
   async addCrop(cropData, imageFile) {
+    console.log('📦 Building FormData for crop:', {
+      cropName: cropData.cropName,
+      category: cropData.category,
+      quantity: cropData.quantity,
+      price: cropData.pricePerUnit,
+      quality: cropData.quality,
+      harvestDate: cropData.harvestDate || cropData.expectedHarvestDate,
+      hasImage: !!imageFile,
+      imageUri: imageFile?.uri,
+    });
+
     const formData = new FormData();
 
-    // Add crop data fields
+    // ---- Backend expects these exact field names ----
     formData.append('cropName', cropData.cropName);
     formData.append('category', cropData.category);
-    formData.append('variety', cropData.variety || '');
-    formData.append('quantity', cropData.quantity);
+    formData.append('quantity', String(cropData.quantity));
     formData.append('unit', cropData.unit || 'kg');
-    formData.append('pricePerUnit', cropData.pricePerUnit);
-    formData.append('expectedPricePerUnit', cropData.expectedPricePerUnit || cropData.pricePerUnit);
-    formData.append('quality', cropData.quality);
-    formData.append('harvestDate', cropData.harvestDate || '');
-    formData.append('expectedHarvestDate', cropData.expectedHarvestDate || '');
-    formData.append('location', cropData.location || '');
 
-    // Add location details
-    if (cropData.locationDetails) {
-      formData.append('village', cropData.locationDetails.village || '');
-      formData.append('tehsil', cropData.locationDetails.tehsil || '');
-      formData.append('district', cropData.locationDetails.district || '');
-      formData.append('state', cropData.locationDetails.state || '');
-      formData.append('pincode', cropData.locationDetails.pincode || '');
-    }
+    // Backend field is 'price', not 'pricePerUnit'
+    formData.append('price', String(cropData.pricePerUnit || cropData.price || 0));
 
-    // Add image if provided
+    // Backend field is 'qualityGrade', not 'quality'
+    formData.append('qualityGrade', cropData.quality || cropData.qualityGrade || '');
+
+    formData.append('description', cropData.description || '');
+    formData.append('harvestDate', cropData.harvestDate || cropData.expectedHarvestDate || '');
+    formData.append('pesticidesUsed', String(cropData.pesticidesUsed || false));
+    formData.append('organic', String(cropData.organic || false));
+    formData.append('minOrderQuantity', String(cropData.minOrderQuantity || 1));
+
+    // Backend location fields: address, city, state, pincode
+    const loc = cropData.locationDetails || {};
+    formData.append('address', loc.village || loc.address || cropData.location || '');
+    formData.append('city', loc.tehsil || loc.district || loc.city || '');
+    formData.append('state', loc.state || '');
+    formData.append('pincode', loc.pincode || '');
+
+    // Image field name must be 'images' to match upload.array('images', 5)
     if (imageFile) {
-      formData.append('cropImage', {
+      console.log('📸 Appending image:', {
+        uri: imageFile.uri,
+        type: imageFile.type,
+        name: imageFile.name,
+      });
+      formData.append('images', {
         uri: imageFile.uri,
         type: imageFile.type || 'image/jpeg',
         name: imageFile.name || `crop_${Date.now()}.jpg`,
       });
     }
 
+    console.log('✅ FormData prepared, making API call to:', API_ENDPOINTS.CROPS.ADD);
     const response = await apiService.upload(API_ENDPOINTS.CROPS.ADD, formData);
+    console.log('✅ Crop created:', response);
     return response;
   }
 
@@ -93,20 +114,26 @@ class CropService {
   async updateCrop(cropId, cropData, imageFile) {
     const formData = new FormData();
 
-    // Add crop data fields if provided
     if (cropData.cropName) formData.append('cropName', cropData.cropName);
     if (cropData.category) formData.append('category', cropData.category);
-    if (cropData.variety !== undefined) formData.append('variety', cropData.variety);
-    if (cropData.quantity !== undefined) formData.append('quantity', cropData.quantity);
+    if (cropData.quantity !== undefined) formData.append('quantity', String(cropData.quantity));
     if (cropData.unit) formData.append('unit', cropData.unit);
-    if (cropData.pricePerUnit !== undefined) formData.append('pricePerUnit', cropData.pricePerUnit);
-    if (cropData.quality) formData.append('quality', cropData.quality);
+
+    // Backend field is 'price'
+    if (cropData.pricePerUnit !== undefined) formData.append('price', String(cropData.pricePerUnit));
+    else if (cropData.price !== undefined) formData.append('price', String(cropData.price));
+
+    // Backend field is 'qualityGrade'
+    if (cropData.quality) formData.append('qualityGrade', cropData.quality);
+    else if (cropData.qualityGrade) formData.append('qualityGrade', cropData.qualityGrade);
+
     if (cropData.harvestDate) formData.append('harvestDate', cropData.harvestDate);
+    if (cropData.description !== undefined) formData.append('description', cropData.description);
     if (cropData.status) formData.append('status', cropData.status);
 
-    // Add image if provided
+    // Image field name must be 'images'
     if (imageFile) {
-      formData.append('cropImage', {
+      formData.append('images', {
         uri: imageFile.uri,
         type: imageFile.type || 'image/jpeg',
         name: imageFile.name || `crop_${Date.now()}.jpg`,
