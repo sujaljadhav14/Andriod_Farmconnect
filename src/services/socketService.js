@@ -43,7 +43,7 @@ class SocketService {
         const timeout = setTimeout(() => {
           console.warn('⚠️ Socket connection timeout - backend may not have Socket.IO configured');
           // Don't reject, just warn - the app should still work with HTTP APIs
-          resolve(); 
+          resolve();
         }, 5000); // Reduced from 10000 to 5000
 
         this.socket.on(SOCKET_EVENTS.CONNECT, () => {

@@ -233,7 +233,7 @@ class APIService {
     try {
       const token = await storageService.getToken();
       console.log('🔐 Auth Token Present:', !!token);
-      
+
       if (!token) {
         console.warn('⚠️ No auth token found - request will fail authentication');
       }
@@ -243,7 +243,7 @@ class APIService {
 
       try {
         console.log('🌐 Sending fetch request to:', `${this.baseURL}${endpoint}`);
-        
+
         const response = await fetch(`${this.baseURL}${endpoint}`, {
           method: 'POST',
           body: formData,
@@ -254,14 +254,14 @@ class APIService {
         });
 
         clearTimeout(timeoutId);
-        
+
         console.log('📥 Response received:', {
           status: response.status,
           statusText: response.statusText,
           ok: response.ok,
           contentType: response.headers.get('content-type'),
         });
-        
+
         const result = await this.handleResponse(response);
         console.log('✅ Upload Success:', result);
         return result;
@@ -284,7 +284,7 @@ class APIService {
         responseStatus: error?.status,
         isNetworkError: error?.name === 'TypeError' || error?.message?.includes('Network'),
       });
-      
+
       // Log full error object for debugging
       console.error('💾 Full error object:', JSON.stringify({
         ...error,
@@ -292,7 +292,7 @@ class APIService {
         message: error?.message,
         code: error?.code,
       }, null, 2));
-      
+
       // Re-throw with more informative error message
       if (!error?.message) {
         throw new Error('Upload failed: Unknown error occurred');

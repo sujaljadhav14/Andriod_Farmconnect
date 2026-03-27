@@ -75,7 +75,7 @@ class UploadService {
         }
 
         const filename = asset.fileName || `photo_${Date.now()}.jpg`;
-        
+
         return {
           uri: asset.uri,
           type: this.getMimeType(filename),

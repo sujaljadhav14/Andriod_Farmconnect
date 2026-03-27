@@ -373,7 +373,7 @@ app.post('/api/crops/add', authenticateToken, upload.array('images', 5), async (
         qualityGrade: !!qualityGrade,
         harvestDate: !!harvestDate,
       });
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: 'Required fields missing',
         missing: {
           cropName: !cropName,
@@ -432,8 +432,8 @@ app.post('/api/crops/add', authenticateToken, upload.array('images', 5), async (
       code: error.code,
       name: error.name,
     });
-    res.status(500).json({ 
-      message: 'Failed to add crop', 
+    res.status(500).json({
+      message: 'Failed to add crop',
       error: error.message,
       details: error.message.includes('Cast') ? 'Invalid data format' : undefined
     });
