@@ -9,6 +9,56 @@ import { API_ENDPOINTS } from '../config/api';
 
 class OrderService {
   /**
+   * Convert backend snake_case status to UI friendly label
+   */
+  formatStatus(status) {
+    if (!status) return 'Pending';
+
+    const normalized = status.toString().toLowerCase();
+    const statusMap = {
+      confirmed: 'Accepted',
+      payment_pending: 'Awaiting Payment',
+      payment_received: 'Payment Received',
+      ready_for_pickup: 'Ready for Pickup',
+      in_transit: 'In Transit',
+      delivered: 'Delivered',
+      completed: 'Completed',
+      cancelled: 'Cancelled',
+      pending: 'Pending',
+      accepted: 'Accepted',
+      rejected: 'Rejected',
+    };
+
+    if (statusMap[normalized]) {
+      return statusMap[normalized];
+    }
+
+    return normalized
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  /**
+   * Convert backend payment values to UI labels
+   */
+  formatPaymentStatus(paymentStatus) {
+    if (!paymentStatus) return 'Pending';
+
+    const normalized = paymentStatus.toString().toLowerCase();
+    const statusMap = {
+      pending: 'Pending',
+      partial: 'Partially Paid',
+      paid: 'Full Paid',
+      refunded: 'Refunded',
+      processing: 'Processing',
+      completed: 'Completed',
+      failed: 'Failed',
+    };
+
+    return statusMap[normalized] || this.formatStatus(normalized);
+  }
+
+  /**
    * Create a new order
    */
   async createOrder(orderData) {
@@ -71,7 +121,7 @@ class OrderService {
    */
   async cancelOrder(orderId, reason) {
     const response = await apiService.put(API_ENDPOINTS.ORDERS.CANCEL(orderId), {
-      cancellationReason: reason,
+      reason: reason,
     });
     return response;
   }
@@ -80,6 +130,8 @@ class OrderService {
    * Normalize order data for display
    */
   normalizeOrder(order) {
+    const rawStatus = order.status || 'pending';
+
     return {
       id: order._id || order.id,
       orderNumber: order.orderNumber || `ORD-${(order._id || order.id).slice(-6).toUpperCase()}`,
@@ -128,8 +180,10 @@ class OrderService {
       bookingAmount: order.bookingAmount || 0,
 
       // Status and dates
-      status: order.status || 'Pending',
-      paymentStatus: order.paymentStatus || 'Pending',
+      status: this.formatStatus(rawStatus),
+      statusRaw: rawStatus,
+      paymentStatus: this.formatPaymentStatus(order.paymentStatus),
+      paymentStatusRaw: order.paymentStatus || 'pending',
       paymentMethod: order.paymentMethod || 'On Delivery',
 
       // Agreement

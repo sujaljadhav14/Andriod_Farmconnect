@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,51 +6,146 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
+  RefreshControl,
 } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
-
-const mockAvailableOrders = [
-  { id: '1', from: 'Nashik', to: 'Mumbai', distance: '180 km', crop: 'Rice (1000kg)', pay: '\u20B93,500', pickupDate: '30 Jan 2025' },
-  { id: '2', from: 'Pune', to: 'Kolhapur', distance: '230 km', crop: 'Onions (800kg)', pay: '\u20B94,200', pickupDate: '1 Feb 2025' },
-  { id: '3', from: 'Ahmednagar', to: 'Solapur', distance: '150 km', crop: 'Soybean (600kg)', pay: '\u20B92,800', pickupDate: '2 Feb 2025' },
-  { id: '4', from: 'Ratnagiri', to: 'Pune', distance: '330 km', crop: 'Mangoes (300kg)', pay: '\u20B96,000', pickupDate: '5 Feb 2025' },
-];
+import transportService from '../../services/transportService';
+import { LoadingSpinner, StatusBadge } from '../../components/common';
+import { formatCurrency, formatDate } from '../../utils/formatters';
 
 const AvailableOrdersScreen = () => {
+  const isFocused = useIsFocused();
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
+  const [acceptingId, setAcceptingId] = useState(null);
+
+  const loadOrders = useCallback(async (showLoader = true) => {
+    if (showLoader) setLoading(true);
+    setError(null);
+
+    try {
+      const response = await transportService.getAvailableOrders();
+      const normalized = transportService.normalizeDeliveries(response.data || response.orders || []);
+      setOrders(normalized);
+    } catch (err) {
+      console.error('Failed to load available transport orders:', err);
+      setError(err.message || 'Failed to load available orders');
+      setOrders([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isFocused) {
+      loadOrders();
+    }
+  }, [isFocused, loadOrders]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadOrders(false);
+  }, [loadOrders]);
+
   const handleAccept = (order) => {
-    Alert.alert('Delivery Accepted (Demo)', `You accepted delivery of ${order.crop}\n${order.from} to ${order.to}\nThis is a demo.`);
+    Alert.alert(
+      'Accept Delivery',
+      `Do you want to accept delivery for ${order.cropName}?`,
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Accept',
+          onPress: async () => {
+            try {
+              setAcceptingId(order.id);
+              await transportService.acceptDelivery(order.id);
+              Alert.alert('Success', 'Delivery accepted successfully');
+              loadOrders(false);
+            } catch (err) {
+              Alert.alert('Error', err.message || 'Failed to accept delivery');
+            } finally {
+              setAcceptingId(null);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const renderOrder = ({ item }) => (
     <View style={styles.card}>
       <View style={styles.routeRow}>
         <MaterialIcons name="radio-button-checked" size={16} color="#2E7D32" />
-        <Text style={styles.routeFrom}>{item.from}</Text>
-        <MaterialIcons name="more-horiz" size={16} color={Colors.textSecondary} />
-        <Text style={styles.distance}>{item.distance}</Text>
+        <Text style={styles.routeFrom}>{item.pickupCity || 'Pickup'}</Text>
         <MaterialIcons name="more-horiz" size={16} color={Colors.textSecondary} />
         <MaterialIcons name="location-on" size={16} color="#D32F2F" />
-        <Text style={styles.routeTo}>{item.to}</Text>
+        <Text style={styles.routeTo}>{item.deliveryCity || 'Destination'}</Text>
       </View>
-      <Text style={styles.crop}>{item.crop}</Text>
-      <Text style={styles.pickup}>Pickup: {item.pickupDate}</Text>
+
+      <View style={styles.headerRow}>
+        <Text style={styles.orderNumber}>#{item.orderNumber}</Text>
+        <StatusBadge status={item.statusLabel} size="small" />
+      </View>
+
+      <Text style={styles.crop}>{item.cropName}</Text>
+      <Text style={styles.metaText}>
+        Qty: {item.quantity} {item.unit}
+      </Text>
+      <Text style={styles.pickup}>Pickup: {formatDate(item.scheduledDate || item.createdAt)}</Text>
+
       <View style={styles.cardBottom}>
-        <Text style={styles.pay}>{item.pay}</Text>
-        <TouchableOpacity style={styles.acceptBtn} onPress={() => handleAccept(item)}>
-          <Text style={styles.acceptBtnText}>Accept</Text>
+        <Text style={styles.pay}>{formatCurrency(item.totalAmount)}</Text>
+        <TouchableOpacity
+          style={[styles.acceptBtn, acceptingId === item.id && styles.acceptBtnDisabled]}
+          onPress={() => handleAccept(item)}
+          disabled={acceptingId === item.id}
+        >
+          <Text style={styles.acceptBtnText}>
+            {acceptingId === item.id ? 'Accepting...' : 'Accept'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 
+  if (loading) {
+    return <LoadingSpinner text="Loading available orders..." />;
+  }
+
   return (
     <FlatList
-      data={mockAvailableOrders}
+      data={orders}
       renderItem={renderOrder}
       keyExtractor={(item) => item.id}
       contentContainerStyle={styles.list}
       style={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1565C0']} />
+      }
+      ListHeaderComponent={
+        orders.length > 0 ? (
+          <View style={styles.summary}>
+            <Text style={styles.summaryText}>{orders.length} available order(s)</Text>
+          </View>
+        ) : null
+      }
+      ListEmptyComponent={
+        <View style={styles.emptyState}>
+          <MaterialIcons name="inbox" size={48} color={Colors.textSecondary} />
+          <Text style={styles.emptyTitle}>{error ? 'Unable to load orders' : 'No available orders'}</Text>
+          <Text style={styles.emptyText}>
+            {error || 'No ready-for-pickup orders are available at the moment.'}
+          </Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => loadOrders()}>
+            <Text style={styles.retryBtnText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      }
     />
   );
 };
@@ -65,13 +160,23 @@ const styles = StyleSheet.create({
   routeRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   routeFrom: { fontSize: 14, fontWeight: '500', color: Colors.text, marginLeft: 4, marginRight: 4 },
   routeTo: { fontSize: 14, fontWeight: '500', color: Colors.text, marginLeft: 4 },
-  distance: { fontSize: 12, color: Colors.textSecondary, marginHorizontal: 4 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  orderNumber: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
   crop: { fontSize: 15, fontWeight: '600', color: Colors.text, marginBottom: 4 },
+  metaText: { fontSize: 13, color: Colors.textSecondary, marginBottom: 4 },
   pickup: { fontSize: 13, color: Colors.textSecondary, marginBottom: 12 },
   cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 12 },
   pay: { fontSize: 18, fontWeight: 'bold', color: '#1565C0' },
   acceptBtn: { backgroundColor: '#1565C0', paddingHorizontal: 20, paddingVertical: 8, borderRadius: 8 },
+  acceptBtnDisabled: { opacity: 0.7 },
   acceptBtnText: { color: Colors.white, fontWeight: '600', fontSize: 14 },
+  summary: { marginBottom: 12 },
+  summaryText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600' },
+  emptyState: { alignItems: 'center', marginTop: 80, paddingHorizontal: 24 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: Colors.text, marginTop: 12 },
+  emptyText: { fontSize: 14, color: Colors.textSecondary, marginTop: 8, textAlign: 'center' },
+  retryBtn: { marginTop: 16, backgroundColor: '#1565C0', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
+  retryBtnText: { color: Colors.white, fontWeight: '600' },
 });
 
 export default AvailableOrdersScreen;

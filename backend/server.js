@@ -13,6 +13,7 @@ const User = require('./models/User');
 const Crop = require('./models/Crop');
 const Proposal = require('./models/Proposal');
 const Order = require('./models/Order');
+const Vehicle = require('./models/Vehicle');
 
 const app = express();
 const port = Number(process.env.PORT || 5050);
@@ -846,6 +847,500 @@ app.put('/api/orders/cancel/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Cancel order error:', error);
     res.status(500).json({ message: 'Failed to cancel order', error: error.message });
+  }
+});
+
+// ============ TRANSPORT ROUTES ============
+
+const ensureTransportRole = (req, res) => {
+  if (req.user.role !== 'transport') {
+    res.status(403).json({ message: 'Only transport users can access this endpoint' });
+    return false;
+  }
+  return true;
+};
+
+const toKg = (value, unit = 'kg') => {
+  const numericValue = Number(value || 0);
+
+  if (unit === 'ton') return numericValue * 1000;
+  if (unit === 'quintal') return numericValue * 100;
+  return numericValue;
+};
+
+// Get available orders for transport assignment
+app.get('/api/transport/available', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureTransportRole(req, res)) return;
+
+    const { city, state } = req.query;
+    const filter = {
+      status: 'ready_for_pickup',
+      $or: [
+        { 'transportDetails.driverId': { $exists: false } },
+        { 'transportDetails.driverId': null },
+      ],
+    };
+
+    if (city) {
+      filter['deliveryDetails.city'] = city;
+    }
+
+    if (state) {
+      filter['deliveryDetails.state'] = state;
+    }
+
+    const orders = await Order.find(filter)
+      .populate('cropId', 'cropName category images')
+      .populate('farmerId', 'name phone location')
+      .populate('traderId', 'name phone location')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      data: orders,
+      total: orders.length,
+    });
+  } catch (error) {
+    console.error('Get transport available orders error:', error);
+    res.status(500).json({ message: 'Failed to fetch available transport orders', error: error.message });
+  }
+});
+
+// Accept delivery assignment
+app.put('/api/transport/accept/:orderId', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureTransportRole(req, res)) return;
+
+    const { vehicleNumber, note } = req.body || {};
+    const order = await Order.findById(req.params.orderId);
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    const alreadyAssignedToAnother =
+      order.transportDetails?.driverId && !order.transportDetails.driverId.equals(req.user._id);
+
+    if (alreadyAssignedToAnother) {
+      return res.status(400).json({ message: 'This order is already assigned to another transporter' });
+    }
+
+    if (order.status !== 'ready_for_pickup' && order.status !== 'in_transit') {
+      return res.status(400).json({ message: 'Only ready-for-pickup orders can be accepted' });
+    }
+
+    order.transportDetails = {
+      ...(order.transportDetails || {}),
+      driverId: req.user._id,
+      vehicleNumber: vehicleNumber || order.transportDetails?.vehicleNumber || '',
+      pickupTime: order.transportDetails?.pickupTime || new Date(),
+    };
+
+    order.notes = {
+      ...(order.notes || {}),
+      transport: note || `Accepted by ${req.user.name}`,
+    };
+
+    order.status = 'in_transit';
+    await order.save();
+
+    const populatedOrder = await Order.findById(order._id)
+      .populate('cropId', 'cropName category images')
+      .populate('farmerId', 'name phone location')
+      .populate('traderId', 'name phone location')
+      .populate('transportDetails.driverId', 'name phone');
+
+    res.json({
+      success: true,
+      message: 'Delivery accepted successfully',
+      data: populatedOrder,
+    });
+  } catch (error) {
+    console.error('Accept transport delivery error:', error);
+    res.status(500).json({ message: 'Failed to accept delivery', error: error.message });
+  }
+});
+
+// Get transporter's current deliveries
+app.get('/api/transport/my-deliveries', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureTransportRole(req, res)) return;
+
+    const { status = 'active' } = req.query;
+    const filter = {
+      'transportDetails.driverId': req.user._id,
+    };
+
+    if (status === 'history') {
+      filter.status = { $in: ['delivered', 'completed', 'cancelled'] };
+    } else if (status === 'active') {
+      filter.status = { $in: ['in_transit', 'ready_for_pickup'] };
+    }
+
+    const deliveries = await Order.find(filter)
+      .populate('cropId', 'cropName category images')
+      .populate('farmerId', 'name phone location')
+      .populate('traderId', 'name phone location')
+      .sort({ updatedAt: -1 });
+
+    res.json({
+      success: true,
+      data: deliveries,
+      total: deliveries.length,
+    });
+  } catch (error) {
+    console.error('Get transport deliveries error:', error);
+    res.status(500).json({ message: 'Failed to fetch deliveries', error: error.message });
+  }
+});
+
+// Get transport delivery history
+app.get('/api/transport/history', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureTransportRole(req, res)) return;
+
+    const history = await Order.find({
+      'transportDetails.driverId': req.user._id,
+      status: { $in: ['delivered', 'completed', 'cancelled'] },
+    })
+      .populate('cropId', 'cropName category images')
+      .populate('farmerId', 'name phone location')
+      .populate('traderId', 'name phone location')
+      .sort({ updatedAt: -1 });
+
+    res.json({
+      success: true,
+      data: history,
+      total: history.length,
+    });
+  } catch (error) {
+    console.error('Get transport history error:', error);
+    res.status(500).json({ message: 'Failed to fetch transport history', error: error.message });
+  }
+});
+
+// Update delivery status
+app.put('/api/transport/status/:deliveryId', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureTransportRole(req, res)) return;
+
+    const { status, note } = req.body || {};
+    const allowedStatuses = ['in_transit', 'delivered', 'completed'];
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Invalid status value' });
+    }
+
+    const delivery = await Order.findOne({
+      _id: req.params.deliveryId,
+      'transportDetails.driverId': req.user._id,
+    });
+
+    if (!delivery) {
+      return res.status(404).json({ message: 'Delivery not found' });
+    }
+
+    if (delivery.status === 'cancelled' || delivery.status === 'completed') {
+      return res.status(400).json({ message: 'Cannot update this delivery anymore' });
+    }
+
+    delivery.status = status;
+
+    if (status === 'delivered') {
+      delivery.deliveryDetails = {
+        ...(delivery.deliveryDetails || {}),
+        actualDate: new Date(),
+      };
+      delivery.transportDetails = {
+        ...(delivery.transportDetails || {}),
+        deliveryTime: new Date(),
+      };
+    }
+
+    if (note) {
+      delivery.notes = {
+        ...(delivery.notes || {}),
+        transport: note,
+      };
+    }
+
+    await delivery.save();
+
+    res.json({
+      success: true,
+      message: 'Delivery status updated successfully',
+      data: delivery,
+    });
+  } catch (error) {
+    console.error('Update transport delivery status error:', error);
+    res.status(500).json({ message: 'Failed to update delivery status', error: error.message });
+  }
+});
+
+// Get delivery details for transporter
+app.get('/api/transport/details/:deliveryId', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureTransportRole(req, res)) return;
+
+    const delivery = await Order.findOne({
+      _id: req.params.deliveryId,
+      'transportDetails.driverId': req.user._id,
+    })
+      .populate('cropId')
+      .populate('farmerId', 'name phone location')
+      .populate('traderId', 'name phone location')
+      .populate('transportDetails.driverId', 'name phone');
+
+    if (!delivery) {
+      return res.status(404).json({ message: 'Delivery not found' });
+    }
+
+    res.json({
+      success: true,
+      data: delivery,
+    });
+  } catch (error) {
+    console.error('Get transport delivery details error:', error);
+    res.status(500).json({ message: 'Failed to fetch delivery details', error: error.message });
+  }
+});
+
+// ============ VEHICLE ROUTES ============
+
+// Get transporter's vehicles
+app.get('/api/vehicles/my-vehicles', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureTransportRole(req, res)) return;
+
+    const vehicles = await Vehicle.find({
+      transporterId: req.user._id,
+      isActive: true,
+    }).sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      data: vehicles,
+      total: vehicles.length,
+    });
+  } catch (error) {
+    console.error('Get vehicles error:', error);
+    res.status(500).json({ message: 'Failed to fetch vehicles', error: error.message });
+  }
+});
+
+// Add vehicle
+app.post('/api/vehicles/add', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureTransportRole(req, res)) return;
+
+    const { vehicleType, vehicleNumber, capacity, capacityUnit, model, year } = req.body || {};
+
+    if (!vehicleType || !vehicleNumber || !capacity) {
+      return res.status(400).json({ message: 'vehicleType, vehicleNumber, and capacity are required' });
+    }
+
+    const normalizedVehicleNumber = vehicleNumber.trim().toUpperCase();
+    const existingVehicle = await Vehicle.findOne({ vehicleNumber: normalizedVehicleNumber });
+    if (existingVehicle) {
+      return res.status(400).json({ message: 'Vehicle with this number already exists' });
+    }
+
+    const vehicle = await Vehicle.create({
+      transporterId: req.user._id,
+      vehicleType,
+      vehicleNumber: normalizedVehicleNumber,
+      capacity: Number(capacity),
+      capacityUnit: capacityUnit || 'kg',
+      model: model || '',
+      year,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Vehicle added successfully',
+      data: vehicle,
+    });
+  } catch (error) {
+    console.error('Add vehicle error:', error);
+    res.status(500).json({ message: 'Failed to add vehicle', error: error.message });
+  }
+});
+
+// Update vehicle details
+app.put('/api/vehicles/:vehicleId/update', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureTransportRole(req, res)) return;
+
+    const vehicle = await Vehicle.findOne({
+      _id: req.params.vehicleId,
+      transporterId: req.user._id,
+      isActive: true,
+    });
+
+    if (!vehicle) {
+      return res.status(404).json({ message: 'Vehicle not found' });
+    }
+
+    const { vehicleType, vehicleNumber, capacity, capacityUnit, model, year, availabilityStatus } = req.body || {};
+
+    if (vehicleNumber && vehicleNumber.trim().toUpperCase() !== vehicle.vehicleNumber) {
+      const duplicate = await Vehicle.findOne({ vehicleNumber: vehicleNumber.trim().toUpperCase() });
+      if (duplicate) {
+        return res.status(400).json({ message: 'Vehicle number already in use' });
+      }
+      vehicle.vehicleNumber = vehicleNumber.trim().toUpperCase();
+    }
+
+    if (vehicleType) vehicle.vehicleType = vehicleType;
+    if (capacity) vehicle.capacity = Number(capacity);
+    if (capacityUnit) vehicle.capacityUnit = capacityUnit;
+    if (model !== undefined) vehicle.model = model;
+    if (year) vehicle.year = year;
+    if (availabilityStatus) vehicle.availabilityStatus = availabilityStatus;
+
+    await vehicle.save();
+
+    res.json({
+      success: true,
+      message: 'Vehicle updated successfully',
+      data: vehicle,
+    });
+  } catch (error) {
+    console.error('Update vehicle error:', error);
+    res.status(500).json({ message: 'Failed to update vehicle', error: error.message });
+  }
+});
+
+// Soft-delete a vehicle
+app.delete('/api/vehicles/:vehicleId/delete', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureTransportRole(req, res)) return;
+
+    const vehicle = await Vehicle.findOne({
+      _id: req.params.vehicleId,
+      transporterId: req.user._id,
+      isActive: true,
+    });
+
+    if (!vehicle) {
+      return res.status(404).json({ message: 'Vehicle not found' });
+    }
+
+    vehicle.isActive = false;
+    vehicle.availabilityStatus = 'inactive';
+    await vehicle.save();
+
+    res.json({
+      success: true,
+      message: 'Vehicle removed successfully',
+    });
+  } catch (error) {
+    console.error('Delete vehicle error:', error);
+    res.status(500).json({ message: 'Failed to remove vehicle', error: error.message });
+  }
+});
+
+// Update vehicle availability
+app.put('/api/vehicles/:vehicleId/availability', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureTransportRole(req, res)) return;
+
+    const { availabilityStatus } = req.body || {};
+    const allowedStatuses = ['available', 'on_delivery', 'maintenance', 'inactive'];
+    if (!allowedStatuses.includes(availabilityStatus)) {
+      return res.status(400).json({ message: 'Invalid availability status' });
+    }
+
+    const vehicle = await Vehicle.findOne({
+      _id: req.params.vehicleId,
+      transporterId: req.user._id,
+      isActive: true,
+    });
+
+    if (!vehicle) {
+      return res.status(404).json({ message: 'Vehicle not found' });
+    }
+
+    vehicle.availabilityStatus = availabilityStatus;
+    await vehicle.save();
+
+    res.json({
+      success: true,
+      message: 'Vehicle availability updated successfully',
+      data: vehicle,
+    });
+  } catch (error) {
+    console.error('Update vehicle availability error:', error);
+    res.status(500).json({ message: 'Failed to update vehicle availability', error: error.message });
+  }
+});
+
+// Available orders from vehicle module context
+app.get('/api/vehicles/orders/available', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureTransportRole(req, res)) return;
+
+    const orders = await Order.find({
+      status: 'ready_for_pickup',
+      $or: [
+        { 'transportDetails.driverId': { $exists: false } },
+        { 'transportDetails.driverId': null },
+      ],
+    })
+      .populate('cropId', 'cropName category images')
+      .populate('farmerId', 'name phone location')
+      .populate('traderId', 'name phone location')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      data: orders,
+      total: orders.length,
+    });
+  } catch (error) {
+    console.error('Get vehicle available orders error:', error);
+    res.status(500).json({ message: 'Failed to fetch available orders', error: error.message });
+  }
+});
+
+// Suggest suitable vehicles for an order
+app.get('/api/vehicles/suggest/:orderId', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureTransportRole(req, res)) return;
+
+    const order = await Order.findById(req.params.orderId);
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    const requiredCapacityKg = toKg(order.quantity, order.unit);
+
+    const vehicles = await Vehicle.find({
+      transporterId: req.user._id,
+      availabilityStatus: 'available',
+      isActive: true,
+    }).sort({ capacity: 1 });
+
+    const suggestions = vehicles
+      .map((vehicle) => {
+        const vehicleCapacityKg = toKg(vehicle.capacity, vehicle.capacityUnit);
+        return {
+          ...vehicle.toObject(),
+          canHandleOrder: vehicleCapacityKg >= requiredCapacityKg,
+          capacityGapKg: vehicleCapacityKg - requiredCapacityKg,
+        };
+      })
+      .sort((a, b) => b.canHandleOrder - a.canHandleOrder || a.capacityGapKg - b.capacityGapKg);
+
+    res.json({
+      success: true,
+      data: suggestions,
+      requiredCapacityKg,
+    });
+  } catch (error) {
+    console.error('Suggest vehicle error:', error);
+    res.status(500).json({ message: 'Failed to suggest vehicles', error: error.message });
   }
 });
 

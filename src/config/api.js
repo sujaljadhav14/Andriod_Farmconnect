@@ -59,7 +59,7 @@ export const API_ENDPOINTS = {
     CREATE: '/api/orders/create',
     FARMER_ORDERS: '/api/orders/farmer/my-orders',
     TRADER_ORDERS: '/api/orders/trader/my-orders',
-    DETAILS: (orderId) => `/api/orders/details/${orderId}`,
+    DETAILS: (orderId) => `/api/orders/${orderId}`,
     ACCEPT: (orderId) => `/api/orders/accept/${orderId}`,
     REJECT: (orderId) => `/api/orders/reject/${orderId}`,
     READY: (orderId) => `/api/orders/ready/${orderId}`,

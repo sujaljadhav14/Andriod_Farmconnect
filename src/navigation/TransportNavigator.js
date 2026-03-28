@@ -6,13 +6,13 @@ import { Colors } from '../constants/colors';
 
 // Import the new transport screens
 import {
-  TransportDashboard,
   TransportBooking,
   TrackingScreen,
   DriverDetails
 } from '../transport';
 
 // Keep existing screens for other tabs
+import TransportDashboardScreen from '../screens/transport/TransportDashboardScreen';
 import AvailableOrdersScreen from '../screens/transport/AvailableOrdersScreen';
 import MyDeliveriesScreen from '../screens/transport/MyDeliveriesScreen';
 import VehicleManagementScreen from '../screens/transport/VehicleManagementScreen';
@@ -30,7 +30,7 @@ const DashboardStack = () => {
       }}>
       <Stack.Screen
         name="DashboardMain"
-        component={TransportDashboard}
+        component={TransportDashboardScreen}
         options={{ title: 'Transport Dashboard' }}
       />
       <Stack.Screen
