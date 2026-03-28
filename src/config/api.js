@@ -82,6 +82,8 @@ export const API_ENDPOINTS = {
     HISTORY: '/api/transport/history',
     STATUS: (deliveryId) => `/api/transport/status/${deliveryId}`,
     DETAILS: (deliveryId) => `/api/transport/details/${deliveryId}`,
+    LOCATION_UPDATE: (deliveryId) => `/api/transport/location/${deliveryId}`,
+    LOCATION: (deliveryId) => `/api/transport/location/${deliveryId}`,
   },
 
   // Vehicles

@@ -102,6 +102,11 @@ const TransportDashboardScreen = ({ navigation }) => {
     loadDashboard(false);
   };
 
+  const openDeliveryDetail = (delivery) => {
+    if (!delivery?.id) return;
+    navigation.navigate('DeliveryDetail', { deliveryId: delivery.id });
+  };
+
   if (loading) {
     return <LoadingSpinner text="Loading dashboard..." />;
   }
@@ -171,7 +176,12 @@ const TransportDashboardScreen = ({ navigation }) => {
         ) : null}
 
         {activeDeliveries.map((delivery) => (
-          <View key={delivery.id} style={styles.deliveryCard}>
+          <TouchableOpacity
+            key={delivery.id}
+            style={styles.deliveryCard}
+            activeOpacity={0.8}
+            onPress={() => openDeliveryDetail(delivery)}
+          >
             <View style={styles.routeRow}>
               <View style={styles.routePoint}>
                 <MaterialIcons name="radio-button-checked" size={16} color="#2E7D32" />
@@ -190,7 +200,7 @@ const TransportDashboardScreen = ({ navigation }) => {
               </View>
               <Text style={styles.eta}>{formatDate(delivery.updatedAt || delivery.createdAt, 'datetime')}</Text>
             </View>
-          </View>
+          </TouchableOpacity>
         ))}
       </View>
 

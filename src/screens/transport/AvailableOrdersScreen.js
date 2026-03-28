@@ -15,7 +15,7 @@ import transportService from '../../services/transportService';
 import { LoadingSpinner, StatusBadge } from '../../components/common';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
-const AvailableOrdersScreen = () => {
+const AvailableOrdersScreen = ({ navigation }) => {
   const isFocused = useIsFocused();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -65,6 +65,7 @@ const AvailableOrdersScreen = () => {
               setAcceptingId(order.id);
               await transportService.acceptDelivery(order.id);
               Alert.alert('Success', 'Delivery accepted successfully');
+              openDeliveryDetail(order);
               loadOrders(false);
             } catch (err) {
               Alert.alert('Error', err.message || 'Failed to accept delivery');
@@ -75,6 +76,21 @@ const AvailableOrdersScreen = () => {
         },
       ]
     );
+  };
+
+  const openDeliveryDetail = (order) => {
+    if (!order?.id) return;
+
+    const routeNames = navigation?.getState?.()?.routeNames || [];
+    if (routeNames.includes('DeliveryDetail')) {
+      navigation.navigate('DeliveryDetail', { deliveryId: order.id });
+      return;
+    }
+
+    navigation.navigate('Dashboard', {
+      screen: 'DeliveryDetail',
+      params: { deliveryId: order.id },
+    });
   };
 
   const renderOrder = ({ item }) => (
@@ -89,7 +105,13 @@ const AvailableOrdersScreen = () => {
 
       <View style={styles.headerRow}>
         <Text style={styles.orderNumber}>#{item.orderNumber}</Text>
-        <StatusBadge status={item.statusLabel} size="small" />
+        <View style={styles.headerActions}>
+          <StatusBadge status={item.statusLabel} size="small" />
+          <TouchableOpacity style={styles.detailLink} onPress={() => openDeliveryDetail(item)}>
+            <MaterialIcons name="open-in-new" size={14} color="#1565C0" />
+            <Text style={styles.detailLinkText}>Details</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Text style={styles.crop}>{item.cropName}</Text>
@@ -161,7 +183,10 @@ const styles = StyleSheet.create({
   routeFrom: { fontSize: 14, fontWeight: '500', color: Colors.text, marginLeft: 4, marginRight: 4 },
   routeTo: { fontSize: 14, fontWeight: '500', color: Colors.text, marginLeft: 4 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  headerActions: { flexDirection: 'row', alignItems: 'center' },
   orderNumber: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
+  detailLink: { flexDirection: 'row', alignItems: 'center', marginLeft: 8, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#1565C015', borderRadius: 12 },
+  detailLinkText: { marginLeft: 3, color: '#1565C0', fontSize: 11, fontWeight: '700' },
   crop: { fontSize: 15, fontWeight: '600', color: Colors.text, marginBottom: 4 },
   metaText: { fontSize: 13, color: Colors.textSecondary, marginBottom: 4 },
   pickup: { fontSize: 13, color: Colors.textSecondary, marginBottom: 12 },

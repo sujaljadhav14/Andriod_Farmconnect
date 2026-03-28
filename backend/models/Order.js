@@ -103,6 +103,25 @@ const orderSchema = new mongoose.Schema({
     pickupTime: Date,
     deliveryTime: Date,
     trackingId: String,
+    currentLocation: {
+      latitude: Number,
+      longitude: Number,
+      accuracy: Number,
+      heading: Number,
+      speed: Number,
+      timestamp: Date,
+    },
+    locationHistory: [{
+      latitude: Number,
+      longitude: Number,
+      accuracy: Number,
+      heading: Number,
+      speed: Number,
+      timestamp: {
+        type: Date,
+        default: Date.now,
+      },
+    }],
   },
   statusHistory: [{
     status: String,

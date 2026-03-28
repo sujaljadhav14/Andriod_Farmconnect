@@ -20,7 +20,7 @@ const STATUS_TABS = [
   { key: 'history', label: 'History' },
 ];
 
-const MyDeliveriesScreen = () => {
+const MyDeliveriesScreen = ({ navigation }) => {
   const isFocused = useIsFocused();
   const [deliveries, setDeliveries] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -88,6 +88,21 @@ const MyDeliveriesScreen = () => {
     );
   };
 
+  const openDeliveryDetail = (delivery) => {
+    if (!delivery?.id) return;
+
+    const routeNames = navigation?.getState?.()?.routeNames || [];
+    if (routeNames.includes('DeliveryDetail')) {
+      navigation.navigate('DeliveryDetail', { deliveryId: delivery.id });
+      return;
+    }
+
+    navigation.navigate('Dashboard', {
+      screen: 'DeliveryDetail',
+      params: { deliveryId: delivery.id },
+    });
+  };
+
   const renderDelivery = ({ item }) => (
     <View style={styles.card}>
       <View style={styles.routeRow}>
@@ -100,7 +115,13 @@ const MyDeliveriesScreen = () => {
 
       <View style={styles.headerRow}>
         <Text style={styles.orderNumber}>#{item.orderNumber}</Text>
-        <StatusBadge status={item.statusLabel} size="small" />
+        <View style={styles.headerActions}>
+          <StatusBadge status={item.statusLabel} size="small" />
+          <TouchableOpacity style={styles.detailLink} onPress={() => openDeliveryDetail(item)}>
+            <MaterialIcons name="open-in-new" size={14} color="#1565C0" />
+            <Text style={styles.detailLinkText}>Details</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Text style={styles.crop}>{item.cropName}</Text>
@@ -215,7 +236,10 @@ const styles = StyleSheet.create({
   routeRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   routeText: { fontSize: 14, fontWeight: '500', color: Colors.text, marginHorizontal: 4 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  headerActions: { flexDirection: 'row', alignItems: 'center' },
   orderNumber: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
+  detailLink: { flexDirection: 'row', alignItems: 'center', marginLeft: 8, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#1565C015', borderRadius: 12 },
+  detailLinkText: { marginLeft: 3, color: '#1565C0', fontSize: 11, fontWeight: '700' },
   crop: { fontSize: 15, fontWeight: '600', color: Colors.text, marginBottom: 12 },
   metaText: { fontSize: 12, color: Colors.textSecondary, marginBottom: 4 },
   cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 12 },

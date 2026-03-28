@@ -7,6 +7,8 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const fs = require('fs');
+const http = require('http');
+const { Server } = require('socket.io');
 
 // Import Models
 const User = require('./models/User');
@@ -16,9 +18,17 @@ const Order = require('./models/Order');
 const Vehicle = require('./models/Vehicle');
 
 const app = express();
+const httpServer = http.createServer(app);
 const port = Number(process.env.PORT || 5050);
 const mongoUri = process.env.MONGO_URI;
 const JWT_SECRET = process.env.JWT_SECRET || 'farmconnect_mobile_secret_key_2024';
+
+const io = new Server(httpServer, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  },
+});
 
 // Middleware
 app.use(cors());
@@ -84,6 +94,225 @@ const authenticateToken = async (req, res, next) => {
 const generateToken = (userId) => {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '30d' });
 };
+
+const normalizeLocationPayload = (location = {}) => {
+  const latitude = Number(location.latitude);
+  const longitude = Number(location.longitude);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+
+  return {
+    latitude,
+    longitude,
+    accuracy: Number.isFinite(Number(location.accuracy)) ? Number(location.accuracy) : undefined,
+    heading: Number.isFinite(Number(location.heading)) ? Number(location.heading) : undefined,
+    speed: Number.isFinite(Number(location.speed)) ? Number(location.speed) : undefined,
+    timestamp: location.timestamp ? new Date(location.timestamp) : new Date(),
+  };
+};
+
+const emitOrderStatusUpdate = async (orderId, triggeredBy = '') => {
+  try {
+    const order = await Order.findById(orderId)
+      .populate('farmerId', 'name phone')
+      .populate('traderId', 'name phone')
+      .populate('cropId', 'cropName');
+
+    if (!order) return;
+
+    const payload = {
+      orderId: order._id.toString(),
+      orderNumber: order.orderNumber,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      cropName: order.cropId?.cropName || '',
+      updatedAt: order.updatedAt,
+      triggeredBy,
+    };
+
+    io.to(`order:${order._id.toString()}`).emit('order:status', payload);
+    io.to(`delivery:${order._id.toString()}`).emit('order:status', payload);
+
+    if (order.farmerId?._id) {
+      io.to(`user:${order.farmerId._id.toString()}`).emit('order:status', payload);
+    }
+    if (order.traderId?._id) {
+      io.to(`user:${order.traderId._id.toString()}`).emit('order:status', payload);
+    }
+  } catch (error) {
+    console.warn('Order status socket emit failed:', error.message);
+  }
+};
+
+const emitDeliveryLocationUpdate = async (orderId, location) => {
+  try {
+    const order = await Order.findById(orderId)
+      .populate('farmerId', 'name phone')
+      .populate('traderId', 'name phone')
+      .populate('transportDetails.driverId', 'name phone');
+
+    if (!order) return;
+
+    const payload = {
+      deliveryId: order._id.toString(),
+      orderNumber: order.orderNumber,
+      status: order.status,
+      location,
+      transporter: {
+        id: order.transportDetails?.driverId?._id?.toString() || '',
+        name: order.transportDetails?.driverId?.name || '',
+        phone: order.transportDetails?.driverId?.phone || '',
+      },
+      updatedAt: new Date(),
+    };
+
+    io.to(`delivery:${order._id.toString()}`).emit('delivery:location', payload);
+
+    if (order.farmerId?._id) {
+      io.to(`user:${order.farmerId._id.toString()}`).emit('delivery:location', payload);
+    }
+    if (order.traderId?._id) {
+      io.to(`user:${order.traderId._id.toString()}`).emit('delivery:location', payload);
+    }
+  } catch (error) {
+    console.warn('Delivery location socket emit failed:', error.message);
+  }
+};
+
+io.use(async (socket, next) => {
+  try {
+    const authToken = socket.handshake?.auth?.token;
+    const bearerHeader = socket.handshake?.headers?.authorization || '';
+    const bearerToken = bearerHeader.startsWith('Bearer ') ? bearerHeader.split(' ')[1] : null;
+    const token = authToken || bearerToken;
+
+    if (!token) {
+      return next(new Error('Socket authentication token missing'));
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const user = await User.findById(decoded.userId).select('-password');
+    if (!user) {
+      return next(new Error('User not found for socket token'));
+    }
+
+    socket.user = user;
+    return next();
+  } catch (error) {
+    return next(new Error('Socket authentication failed'));
+  }
+});
+
+io.on('connection', (socket) => {
+  const userId = socket.user?._id?.toString();
+  const userRole = socket.user?.role;
+
+  if (userId) {
+    socket.join(`user:${userId}`);
+  }
+
+  if (userRole) {
+    socket.join(`role:${userRole}`);
+  }
+
+  socket.on('join-room', ({ room } = {}, ack) => {
+    if (!room) {
+      if (typeof ack === 'function') ack({ success: false, message: 'room is required' });
+      return;
+    }
+
+    socket.join(room);
+    if (typeof ack === 'function') ack({ success: true, room });
+  });
+
+  socket.on('leave-room', ({ room } = {}, ack) => {
+    if (!room) {
+      if (typeof ack === 'function') ack({ success: false, message: 'room is required' });
+      return;
+    }
+
+    socket.leave(room);
+    if (typeof ack === 'function') ack({ success: true, room });
+  });
+
+  socket.on('tracking:subscribe', ({ deliveryId } = {}, ack) => {
+    if (!deliveryId) {
+      if (typeof ack === 'function') ack({ success: false, message: 'deliveryId is required' });
+      return;
+    }
+
+    socket.join(`delivery:${deliveryId}`);
+    socket.join(`order:${deliveryId}`);
+    if (typeof ack === 'function') ack({ success: true, deliveryId });
+  });
+
+  socket.on('tracking:unsubscribe', ({ deliveryId } = {}, ack) => {
+    if (!deliveryId) {
+      if (typeof ack === 'function') ack({ success: false, message: 'deliveryId is required' });
+      return;
+    }
+
+    socket.leave(`delivery:${deliveryId}`);
+    socket.leave(`order:${deliveryId}`);
+    if (typeof ack === 'function') ack({ success: true, deliveryId });
+  });
+
+  socket.on('delivery:location:update', async ({ deliveryId, location } = {}, ack) => {
+    try {
+      if (!deliveryId || !location) {
+        if (typeof ack === 'function') ack({ success: false, message: 'deliveryId and location are required' });
+        return;
+      }
+
+      if (socket.user?.role !== 'transport') {
+        if (typeof ack === 'function') ack({ success: false, message: 'Only transport users can update location' });
+        return;
+      }
+
+      const normalizedLocation = normalizeLocationPayload(location);
+      if (!normalizedLocation) {
+        if (typeof ack === 'function') ack({ success: false, message: 'Invalid location coordinates' });
+        return;
+      }
+
+      const order = await Order.findOne({
+        _id: deliveryId,
+        'transportDetails.driverId': socket.user._id,
+      });
+
+      if (!order) {
+        if (typeof ack === 'function') ack({ success: false, message: 'Delivery not found or not assigned' });
+        return;
+      }
+
+      order.transportDetails = {
+        ...(order.transportDetails || {}),
+        currentLocation: normalizedLocation,
+      };
+
+      const locationHistory = [
+        ...(order.transportDetails.locationHistory || []),
+        normalizedLocation,
+      ];
+
+      // Keep only recent points to prevent unbounded growth.
+      order.transportDetails.locationHistory = locationHistory.slice(-200);
+      await order.save();
+
+      await emitDeliveryLocationUpdate(order._id, normalizedLocation);
+
+      if (typeof ack === 'function') {
+        ack({ success: true, deliveryId: order._id.toString(), location: normalizedLocation });
+      }
+    } catch (error) {
+      if (typeof ack === 'function') {
+        ack({ success: false, message: error.message || 'Failed to update location' });
+      }
+    }
+  });
+});
 
 // ============ HEALTH CHECK ============
 app.get('/health', (req, res) => {
@@ -798,6 +1027,8 @@ app.put('/api/orders/ready/:id', authenticateToken, async (req, res) => {
     order.status = 'ready_for_pickup';
     await order.save();
 
+    await emitOrderStatusUpdate(order._id, 'farmer_ready_for_pickup');
+
     res.json({
       success: true,
       message: 'Order marked as ready for pickup',
@@ -835,6 +1066,8 @@ app.put('/api/orders/cancel/:id', authenticateToken, async (req, res) => {
     order.cancelledAt = new Date();
     order.cancelledBy = req.user._id;
     await order.save();
+
+    await emitOrderStatusUpdate(order._id, 'order_cancelled');
 
     // Make crop available again
     await Crop.findByIdAndUpdate(order.cropId, { status: 'available' });
@@ -944,6 +1177,8 @@ app.put('/api/transport/accept/:orderId', authenticateToken, async (req, res) =>
 
     order.status = 'in_transit';
     await order.save();
+
+    await emitOrderStatusUpdate(order._id, 'transport_accepted_delivery');
 
     const populatedOrder = await Order.findById(order._id)
       .populate('cropId', 'cropName category images')
@@ -1067,6 +1302,8 @@ app.put('/api/transport/status/:deliveryId', authenticateToken, async (req, res)
 
     await delivery.save();
 
+    await emitOrderStatusUpdate(delivery._id, 'transport_status_update');
+
     res.json({
       success: true,
       message: 'Delivery status updated successfully',
@@ -1103,6 +1340,95 @@ app.get('/api/transport/details/:deliveryId', authenticateToken, async (req, res
   } catch (error) {
     console.error('Get transport delivery details error:', error);
     res.status(500).json({ message: 'Failed to fetch delivery details', error: error.message });
+  }
+});
+
+// Update live delivery location (transport only)
+app.put('/api/transport/location/:deliveryId', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureTransportRole(req, res)) return;
+
+    const normalizedLocation = normalizeLocationPayload(req.body || {});
+    if (!normalizedLocation) {
+      return res.status(400).json({ message: 'Invalid latitude/longitude in request body' });
+    }
+
+    const delivery = await Order.findOne({
+      _id: req.params.deliveryId,
+      'transportDetails.driverId': req.user._id,
+    });
+
+    if (!delivery) {
+      return res.status(404).json({ message: 'Delivery not found' });
+    }
+
+    delivery.transportDetails = {
+      ...(delivery.transportDetails || {}),
+      currentLocation: normalizedLocation,
+    };
+
+    const history = [
+      ...(delivery.transportDetails.locationHistory || []),
+      normalizedLocation,
+    ];
+    delivery.transportDetails.locationHistory = history.slice(-200);
+    await delivery.save();
+
+    await emitDeliveryLocationUpdate(delivery._id, normalizedLocation);
+
+    res.json({
+      success: true,
+      message: 'Delivery location updated',
+      data: {
+        deliveryId: delivery._id,
+        location: normalizedLocation,
+      },
+    });
+  } catch (error) {
+    console.error('Update delivery location error:', error);
+    res.status(500).json({ message: 'Failed to update delivery location', error: error.message });
+  }
+});
+
+// Get latest location and recent path for a delivery
+app.get('/api/transport/location/:deliveryId', authenticateToken, async (req, res) => {
+  try {
+    const delivery = await Order.findById(req.params.deliveryId)
+      .select('orderNumber status farmerId traderId transportDetails')
+      .populate('farmerId', 'name phone')
+      .populate('traderId', 'name phone')
+      .populate('transportDetails.driverId', 'name phone');
+
+    if (!delivery) {
+      return res.status(404).json({ message: 'Delivery not found' });
+    }
+
+    const isTransportOwner =
+      req.user.role === 'transport' &&
+      delivery.transportDetails?.driverId?._id?.equals(req.user._id);
+    const isFarmerOwner = req.user.role === 'farmer' && delivery.farmerId?._id?.equals(req.user._id);
+    const isTraderOwner = req.user.role === 'trader' && delivery.traderId?._id?.equals(req.user._id);
+
+    if (!isTransportOwner && !isFarmerOwner && !isTraderOwner) {
+      return res.status(403).json({ message: 'Not authorized to view this delivery location' });
+    }
+
+    const recentPath = (delivery.transportDetails?.locationHistory || []).slice(-50);
+
+    res.json({
+      success: true,
+      data: {
+        deliveryId: delivery._id,
+        orderNumber: delivery.orderNumber,
+        status: delivery.status,
+        currentLocation: delivery.transportDetails?.currentLocation || null,
+        recentPath,
+        transporter: delivery.transportDetails?.driverId || null,
+      },
+    });
+  } catch (error) {
+    console.error('Get delivery location error:', error);
+    res.status(500).json({ message: 'Failed to fetch delivery location', error: error.message });
   }
 });
 
@@ -1400,9 +1726,10 @@ const start = async () => {
       }
     }
 
-    app.listen(port, '0.0.0.0', () => {
+    httpServer.listen(port, '0.0.0.0', () => {
       console.log(`🚀 FarmConnect Mobile Backend running on http://localhost:${port}`);
       console.log(`📱 Health check: http://localhost:${port}/health`);
+      console.log(`📡 Socket.IO ready at ws://localhost:${port}`);
       console.log(`🌾 Ready for your mobile app!`);
     });
   } catch (error) {
