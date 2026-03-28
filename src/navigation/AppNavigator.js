@@ -7,6 +7,7 @@ import RolePickerScreen from '../screens/RolePickerScreen';
 import FarmerNavigator from './FarmerNavigator';
 import TraderNavigator from './TraderNavigator';
 import TransportNavigator from './TransportNavigator';
+import AdminNavigator from './AdminNavigator';
 import { Colors } from '../constants/colors';
 
 const Stack = createNativeStackNavigator();
@@ -38,9 +39,7 @@ const AppNavigator = () => {
       case 'transport':
         return 'TransportMain';
       case 'admin':
-        // AdminMain navigator not yet implemented – fall back to RolePicker
-        // TODO: create AdminNavigator and add AdminMain screen here
-        return 'RolePicker';
+        return 'AdminMain';
       default:
         return 'RolePicker';
     }
@@ -63,6 +62,7 @@ const AppNavigator = () => {
           <Stack.Screen name="FarmerMain" component={FarmerNavigator} />
           <Stack.Screen name="TraderMain" component={TraderNavigator} />
           <Stack.Screen name="TransportMain" component={TransportNavigator} />
+          <Stack.Screen name="AdminMain" component={AdminNavigator} />
         </>
       )}
     </Stack.Navigator>

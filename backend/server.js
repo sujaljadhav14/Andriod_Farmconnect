@@ -16,6 +16,8 @@ const Crop = require('./models/Crop');
 const Proposal = require('./models/Proposal');
 const Order = require('./models/Order');
 const Vehicle = require('./models/Vehicle');
+const Transaction = require('./models/Transaction');
+const Agreement = require('./models/Agreement');
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -111,6 +113,112 @@ const normalizeLocationPayload = (location = {}) => {
     speed: Number.isFinite(Number(location.speed)) ? Number(location.speed) : undefined,
     timestamp: location.timestamp ? new Date(location.timestamp) : new Date(),
   };
+};
+
+const toIdString = (value) => {
+  if (!value) return '';
+  if (value._id) return value._id.toString();
+  return value.toString();
+};
+
+const idsEqual = (left, right) => toIdString(left) && toIdString(left) === toIdString(right);
+
+const roundAmount = (value) => Math.round(Number(value || 0) * 100) / 100;
+
+const buildAgreementDocumentBody = ({ order, cropName, farmerName, traderName }) => {
+  const deliveryParts = [
+    order.deliveryDetails?.address,
+    order.deliveryDetails?.city,
+    order.deliveryDetails?.state,
+    order.deliveryDetails?.pincode,
+  ].filter(Boolean);
+
+  return [
+    'FarmConnect Produce Trade Agreement',
+    '',
+    `Document Number: ${order.orderNumber}`,
+    `Order Number: ${order.orderNumber}`,
+    `Generated On: ${new Date().toISOString()}`,
+    '',
+    `Farmer: ${farmerName}`,
+    `Trader: ${traderName}`,
+    '',
+    'Trade Terms:',
+    `- Crop: ${cropName}`,
+    `- Quantity: ${order.quantity} ${order.unit}`,
+    `- Price Per Unit: ${order.pricePerUnit}`,
+    `- Total Amount: ${order.totalAmount}`,
+    `- Payment Method: ${order.paymentDetails?.method || 'upi'}`,
+    `- Payment Reference: ${order.paymentDetails?.transactionId || 'N/A'}`,
+    `- Delivery Address: ${deliveryParts.join(', ') || 'Not specified'}`,
+    '',
+    'Disclaimer:',
+    'FarmConnect facilitates this trade. Quality and fulfillment are governed by the signed terms between farmer and trader.',
+  ].join('\n');
+};
+
+const ensureAgreementForOrder = async (orderId, sourceTransaction = null) => {
+  const existingAgreement = await Agreement.findOne({ orderId });
+
+  if (existingAgreement) {
+    if (!existingAgreement.generatedAfterTransaction && sourceTransaction?._id) {
+      existingAgreement.generatedAfterTransaction = sourceTransaction._id;
+      await existingAgreement.save();
+    }
+
+    await Order.findByIdAndUpdate(orderId, {
+      agreementId: existingAgreement._id,
+      agreementStatus: existingAgreement.status,
+      agreementGeneratedAt: existingAgreement.createdAt,
+    });
+
+    return existingAgreement;
+  }
+
+  const order = await Order.findById(orderId)
+    .populate('cropId', 'cropName')
+    .populate('farmerId', 'name')
+    .populate('traderId', 'name');
+
+  if (!order) {
+    return null;
+  }
+
+  const agreement = await Agreement.create({
+    orderId: order._id,
+    farmerId: order.farmerId?._id || order.farmerId,
+    traderId: order.traderId?._id || order.traderId,
+    generatedAfterTransaction: sourceTransaction?._id,
+    documentBody: buildAgreementDocumentBody({
+      order,
+      cropName: order.cropId?.cropName || 'Produce',
+      farmerName: order.farmerId?.name || 'Farmer',
+      traderName: order.traderId?.name || 'Trader',
+    }),
+    terms: {
+      cropName: order.cropId?.cropName || 'Produce',
+      quantity: order.quantity,
+      unit: order.unit,
+      pricePerUnit: order.pricePerUnit,
+      totalAmount: order.totalAmount,
+      paymentMethod: order.paymentDetails?.method || 'upi',
+      paymentReference: order.paymentDetails?.transactionId || '',
+      deliveryAddress: order.deliveryDetails?.address || '',
+      deliveryCity: order.deliveryDetails?.city || '',
+      deliveryState: order.deliveryDetails?.state || '',
+      deliveryPincode: order.deliveryDetails?.pincode || '',
+      agreedOn: new Date(),
+    },
+    status: 'pending_farmer',
+  });
+
+  await Order.findByIdAndUpdate(orderId, {
+    agreementId: agreement._id,
+    agreementStatus: 'pending_farmer',
+    agreementGeneratedAt: new Date(),
+  });
+
+  return agreement;
 };
 
 const emitOrderStatusUpdate = async (orderId, triggeredBy = '') => {
@@ -985,7 +1093,9 @@ app.get('/api/orders/:id', authenticateToken, async (req, res) => {
     }
 
     // Check if user is authorized to view this order
-    const isAuthorized = order.farmerId._id.equals(req.user._id) ||
+    const isAuthorized =
+      req.user.role === 'admin' ||
+      order.farmerId._id.equals(req.user._id) ||
       order.traderId._id.equals(req.user._id) ||
       (order.transportDetails.driverId && order.transportDetails.driverId.equals(req.user._id));
 
@@ -1080,6 +1190,753 @@ app.put('/api/orders/cancel/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Cancel order error:', error);
     res.status(500).json({ message: 'Failed to cancel order', error: error.message });
+  }
+});
+
+// ============ TRANSACTION ROUTES (DUMMY PAYMENTS) ============
+
+app.post('/api/transactions', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'trader' && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Only traders can create payment transactions' });
+    }
+
+    const {
+      orderId,
+      amount,
+      paymentMethod = 'upi',
+      type = 'full_payment',
+      notes = '',
+      metadata,
+      status = 'completed',
+    } = req.body || {};
+
+    if (!orderId) {
+      return res.status(400).json({ message: 'orderId is required' });
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    const canPay = req.user.role === 'admin' || idsEqual(order.traderId, req.user._id);
+    if (!canPay) {
+      return res.status(403).json({ message: 'Not authorized to pay for this order' });
+    }
+
+    if (order.status === 'cancelled') {
+      return res.status(400).json({ message: 'Cannot create payment for a cancelled order' });
+    }
+
+    const paidAmountBefore = Number(order.paymentDetails?.paidAmount || 0);
+    const orderTotal = Number(order.totalAmount || 0);
+    const remainingAmount = roundAmount(Math.max(orderTotal - paidAmountBefore, 0));
+
+    if (remainingAmount <= 0) {
+      return res.status(400).json({ message: 'Order is already fully paid' });
+    }
+
+    const requestedAmount = amount !== undefined ? Number(amount) : remainingAmount;
+    if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
+      return res.status(400).json({ message: 'Invalid payment amount' });
+    }
+
+    const paymentAmount = roundAmount(Math.min(requestedAmount, remainingAmount));
+    const allowedMethods = ['upi', 'bank_transfer', 'cash', 'cheque'];
+    const requestedMethod = String(paymentMethod || 'upi').toLowerCase();
+    const normalizedMethod = allowedMethods.includes(requestedMethod) ? requestedMethod : 'upi';
+
+    const allowedStatuses = ['pending', 'completed', 'failed'];
+    const requestedStatus = String(status || 'completed').toLowerCase();
+    const normalizedStatus = allowedStatuses.includes(requestedStatus) ? requestedStatus : 'completed';
+
+    const transaction = await Transaction.create({
+      orderId: order._id,
+      payerId: req.user._id,
+      payeeId: order.farmerId,
+      type,
+      amount: paymentAmount,
+      status: normalizedStatus,
+      paymentMethod: normalizedMethod,
+      gateway: 'dummy',
+      notes,
+      metadata,
+    });
+
+    let generatedAgreement = null;
+
+    if (normalizedStatus === 'completed') {
+      const paidAmountAfter = roundAmount(Math.min(paidAmountBefore + paymentAmount, orderTotal));
+      const nextPaymentStatus = paidAmountAfter >= orderTotal ? 'paid' : 'partial';
+
+      order.paymentStatus = nextPaymentStatus;
+      order.paymentDetails = {
+        ...(order.paymentDetails || {}),
+        method: normalizedMethod,
+        transactionId: transaction.referenceNumber,
+        paidAmount: paidAmountAfter,
+        paidAt: new Date(),
+      };
+
+      if (order.status === 'confirmed') {
+        order.status = nextPaymentStatus === 'paid' ? 'payment_received' : 'payment_pending';
+      }
+
+      if (order.status === 'payment_pending' && nextPaymentStatus === 'paid') {
+        order.status = 'payment_received';
+      }
+
+      if (nextPaymentStatus === 'paid') {
+        generatedAgreement = await ensureAgreementForOrder(order._id, transaction);
+        if (generatedAgreement) {
+          order.agreementId = generatedAgreement._id;
+          order.agreementStatus = generatedAgreement.status;
+          order.agreementGeneratedAt = generatedAgreement.createdAt;
+        }
+      }
+
+      await order.save();
+      await emitOrderStatusUpdate(order._id, 'transaction_completed');
+    }
+
+    const updatedOrder = await Order.findById(order._id)
+      .populate('cropId', 'cropName category images')
+      .populate('farmerId', 'name phone')
+      .populate('traderId', 'name phone');
+
+    let agreementPayload = null;
+    if (generatedAgreement) {
+      agreementPayload = await Agreement.findById(generatedAgreement._id)
+        .populate('generatedAfterTransaction', 'referenceNumber amount status paymentMethod completedAt')
+        .populate('farmerId', 'name phone')
+        .populate('traderId', 'name phone');
+    }
+
+    res.status(201).json({
+      success: true,
+      message: normalizedStatus === 'completed'
+        ? 'Dummy payment recorded successfully'
+        : 'Transaction created in simulation mode',
+      data: {
+        transaction,
+        order: updatedOrder,
+        agreement: agreementPayload,
+      },
+    });
+  } catch (error) {
+    console.error('Create transaction error:', error);
+    res.status(500).json({ message: 'Failed to create transaction', error: error.message });
+  }
+});
+
+app.get('/api/transactions', authenticateToken, async (req, res) => {
+  try {
+    const { status, type, orderId, page = 1, limit = 20 } = req.query;
+
+    let scopeQuery = null;
+    if (req.user.role === 'trader') {
+      scopeQuery = { payerId: req.user._id };
+    } else if (req.user.role === 'farmer') {
+      scopeQuery = { payeeId: req.user._id };
+    } else if (req.user.role === 'admin') {
+      scopeQuery = {};
+    }
+
+    if (!scopeQuery) {
+      return res.status(403).json({ message: 'This role cannot access transactions' });
+    }
+
+    const query = {
+      ...scopeQuery,
+    };
+
+    if (status) query.status = status;
+    if (type) query.type = type;
+    if (orderId) query.orderId = orderId;
+
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(limit) || 20));
+    const skip = (pageNumber - 1) * pageSize;
+
+    const [transactions, total] = await Promise.all([
+      Transaction.find(query)
+        .populate('orderId', 'orderNumber totalAmount paymentStatus status agreementStatus')
+        .populate('payerId', 'name phone role')
+        .populate('payeeId', 'name phone role')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(pageSize),
+      Transaction.countDocuments(query),
+    ]);
+
+    res.json({
+      success: true,
+      data: transactions,
+      pagination: {
+        total,
+        page: pageNumber,
+        pages: Math.ceil(total / pageSize),
+        limit: pageSize,
+      },
+    });
+  } catch (error) {
+    console.error('Get transactions error:', error);
+    res.status(500).json({ message: 'Failed to fetch transactions', error: error.message });
+  }
+});
+
+app.get('/api/transactions/stats', authenticateToken, async (req, res) => {
+  try {
+    let scopeMatch = null;
+    if (req.user.role === 'trader') {
+      scopeMatch = { payerId: req.user._id };
+    } else if (req.user.role === 'farmer') {
+      scopeMatch = { payeeId: req.user._id };
+    } else if (req.user.role === 'admin') {
+      scopeMatch = {};
+    }
+
+    if (!scopeMatch) {
+      return res.status(403).json({ message: 'This role cannot access transaction stats' });
+    }
+
+    const [overall, byStatus, byType] = await Promise.all([
+      Transaction.aggregate([
+        { $match: scopeMatch },
+        {
+          $group: {
+            _id: null,
+            totalTransactions: { $sum: 1 },
+            totalAmount: { $sum: '$amount' },
+            completedAmount: {
+              $sum: {
+                $cond: [{ $eq: ['$status', 'completed'] }, '$amount', 0],
+              },
+            },
+          },
+        },
+      ]),
+      Transaction.aggregate([
+        { $match: scopeMatch },
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 },
+            amount: { $sum: '$amount' },
+          },
+        },
+      ]),
+      Transaction.aggregate([
+        { $match: scopeMatch },
+        {
+          $group: {
+            _id: '$type',
+            count: { $sum: 1 },
+            amount: { $sum: '$amount' },
+          },
+        },
+      ]),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        overall: overall[0] || {
+          totalTransactions: 0,
+          totalAmount: 0,
+          completedAmount: 0,
+        },
+        byStatus,
+        byType,
+      },
+    });
+  } catch (error) {
+    console.error('Get transaction stats error:', error);
+    res.status(500).json({ message: 'Failed to fetch transaction stats', error: error.message });
+  }
+});
+
+app.get('/api/transactions/reference/:referenceNumber', authenticateToken, async (req, res) => {
+  try {
+    const transaction = await Transaction.findOne({
+      referenceNumber: req.params.referenceNumber,
+    })
+      .populate('orderId', 'orderNumber totalAmount paymentStatus status agreementStatus')
+      .populate('payerId', 'name phone role')
+      .populate('payeeId', 'name phone role');
+
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
+
+    const canAccess =
+      req.user.role === 'admin' ||
+      idsEqual(transaction.payerId, req.user._id) ||
+      idsEqual(transaction.payeeId, req.user._id);
+
+    if (!canAccess) {
+      return res.status(403).json({ message: 'Not authorized to view this transaction' });
+    }
+
+    res.json({
+      success: true,
+      data: transaction,
+    });
+  } catch (error) {
+    console.error('Get transaction by reference error:', error);
+    res.status(500).json({ message: 'Failed to fetch transaction', error: error.message });
+  }
+});
+
+app.get('/api/transactions/:transactionId', authenticateToken, async (req, res) => {
+  try {
+    const transaction = await Transaction.findById(req.params.transactionId)
+      .populate('orderId', 'orderNumber totalAmount paymentStatus status agreementStatus')
+      .populate('payerId', 'name phone role')
+      .populate('payeeId', 'name phone role');
+
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
+
+    const canAccess =
+      req.user.role === 'admin' ||
+      idsEqual(transaction.payerId, req.user._id) ||
+      idsEqual(transaction.payeeId, req.user._id);
+
+    if (!canAccess) {
+      return res.status(403).json({ message: 'Not authorized to view this transaction' });
+    }
+
+    res.json({
+      success: true,
+      data: transaction,
+    });
+  } catch (error) {
+    console.error('Get transaction details error:', error);
+    res.status(500).json({ message: 'Failed to fetch transaction details', error: error.message });
+  }
+});
+
+// ============ AGREEMENT ROUTES (LEGAL DOCUMENTS) ============
+
+app.get('/api/agreements', authenticateToken, async (req, res) => {
+  try {
+    const { status, orderId, page = 1, limit = 20 } = req.query;
+
+    const query = {};
+    if (status) query.status = status;
+    if (orderId) query.orderId = orderId;
+
+    if (req.user.role === 'farmer') {
+      query.farmerId = req.user._id;
+    } else if (req.user.role === 'trader') {
+      query.traderId = req.user._id;
+    } else if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'This role cannot access agreements list' });
+    }
+
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(limit) || 20));
+    const skip = (pageNumber - 1) * pageSize;
+
+    const [agreements, total] = await Promise.all([
+      Agreement.find(query)
+        .populate('orderId', 'orderNumber totalAmount paymentStatus status')
+        .populate('farmerId', 'name phone role')
+        .populate('traderId', 'name phone role')
+        .populate('generatedAfterTransaction', 'referenceNumber amount status paymentMethod completedAt')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(pageSize),
+      Agreement.countDocuments(query),
+    ]);
+
+    res.json({
+      success: true,
+      data: agreements,
+      pagination: {
+        total,
+        page: pageNumber,
+        pages: Math.ceil(total / pageSize),
+        limit: pageSize,
+      },
+    });
+  } catch (error) {
+    console.error('Get agreements list error:', error);
+    res.status(500).json({ message: 'Failed to fetch agreements', error: error.message });
+  }
+});
+
+app.get('/api/agreements/stats', authenticateToken, async (req, res) => {
+  try {
+    const scopeMatch = {};
+
+    if (req.user.role === 'farmer') {
+      scopeMatch.farmerId = req.user._id;
+    } else if (req.user.role === 'trader') {
+      scopeMatch.traderId = req.user._id;
+    } else if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'This role cannot access agreement stats' });
+    }
+
+    const [overall, byStatus] = await Promise.all([
+      Agreement.aggregate([
+        { $match: scopeMatch },
+        {
+          $group: {
+            _id: null,
+            totalAgreements: { $sum: 1 },
+            completedAgreements: {
+              $sum: {
+                $cond: [{ $eq: ['$status', 'completed'] }, 1, 0],
+              },
+            },
+            pendingAgreements: {
+              $sum: {
+                $cond: [{ $in: ['$status', ['pending_farmer', 'pending_trader']] }, 1, 0],
+              },
+            },
+            cancelledAgreements: {
+              $sum: {
+                $cond: [{ $eq: ['$status', 'cancelled'] }, 1, 0],
+              },
+            },
+          },
+        },
+      ]),
+      Agreement.aggregate([
+        { $match: scopeMatch },
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        overall: overall[0] || {
+          totalAgreements: 0,
+          completedAgreements: 0,
+          pendingAgreements: 0,
+          cancelledAgreements: 0,
+        },
+        byStatus,
+      },
+    });
+  } catch (error) {
+    console.error('Get agreement stats error:', error);
+    res.status(500).json({ message: 'Failed to fetch agreement stats', error: error.message });
+  }
+});
+
+app.get('/api/agreements/:orderId/export', authenticateToken, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.orderId);
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    const canAccess =
+      req.user.role === 'admin' ||
+      idsEqual(order.farmerId, req.user._id) ||
+      idsEqual(order.traderId, req.user._id);
+
+    if (!canAccess) {
+      return res.status(403).json({ message: 'Not authorized to export this agreement' });
+    }
+
+    const agreement = await Agreement.findOne({ orderId: order._id })
+      .populate('orderId', 'orderNumber totalAmount paymentStatus status')
+      .populate('farmerId', 'name phone')
+      .populate('traderId', 'name phone')
+      .populate('generatedAfterTransaction', 'referenceNumber amount status paymentMethod completedAt');
+
+    if (!agreement) {
+      return res.status(404).json({ message: 'Agreement not found' });
+    }
+
+    const lines = [
+      agreement.title || 'FarmConnect Produce Trade Agreement',
+      '',
+      `Document Number: ${agreement.documentNumber || 'N/A'}`,
+      `Order Number: ${agreement.orderId?.orderNumber || 'N/A'}`,
+      `Agreement Status: ${agreement.status || 'N/A'}`,
+      '',
+      `Farmer: ${agreement.farmerId?.name || 'N/A'} (${agreement.farmerId?.phone || '-'})`,
+      `Trader: ${agreement.traderId?.name || 'N/A'} (${agreement.traderId?.phone || '-'})`,
+      '',
+      `Crop: ${agreement.terms?.cropName || '-'}`,
+      `Quantity: ${agreement.terms?.quantity || 0} ${agreement.terms?.unit || ''}`,
+      `Price Per Unit: ${agreement.terms?.pricePerUnit || 0}`,
+      `Total Amount: ${agreement.terms?.totalAmount || agreement.orderId?.totalAmount || 0}`,
+      `Payment Method: ${agreement.terms?.paymentMethod || '-'}`,
+      `Payment Reference: ${agreement.terms?.paymentReference || agreement.generatedAfterTransaction?.referenceNumber || '-'}`,
+      '',
+      `Farmer Signature: ${agreement.farmerSignature?.signed ? `Signed by ${agreement.farmerSignature?.digitalSignature || 'Farmer'}` : 'Pending'}`,
+      `Trader Signature: ${agreement.traderSignature?.signed ? `Signed by ${agreement.traderSignature?.digitalSignature || 'Trader'}` : 'Pending'}`,
+      '',
+      'Document Body:',
+      agreement.documentBody || '',
+    ];
+
+    const content = lines.join('\n');
+
+    res.json({
+      success: true,
+      data: {
+        fileName: `${agreement.documentNumber || agreement.orderId?.orderNumber || 'agreement'}.txt`,
+        content,
+      },
+    });
+  } catch (error) {
+    console.error('Export agreement error:', error);
+    res.status(500).json({ message: 'Failed to export agreement', error: error.message });
+  }
+});
+
+app.get('/api/agreements/:orderId', authenticateToken, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.orderId);
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    const canAccess =
+      req.user.role === 'admin' ||
+      idsEqual(order.farmerId, req.user._id) ||
+      idsEqual(order.traderId, req.user._id);
+
+    if (!canAccess) {
+      return res.status(403).json({ message: 'Not authorized to view this agreement' });
+    }
+
+    const agreement = await Agreement.findOne({ orderId: order._id })
+      .populate('orderId', 'orderNumber totalAmount paymentStatus status')
+      .populate('farmerId', 'name phone')
+      .populate('traderId', 'name phone')
+      .populate('generatedAfterTransaction', 'referenceNumber amount status paymentMethod completedAt');
+
+    if (!agreement) {
+      return res.status(404).json({
+        message: 'Agreement has not been generated yet. Complete payment first.',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: agreement,
+    });
+  } catch (error) {
+    console.error('Get agreement error:', error);
+    res.status(500).json({ message: 'Failed to fetch agreement', error: error.message });
+  }
+});
+
+app.post('/api/agreements/farmer-sign/:orderId', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'farmer') {
+      return res.status(403).json({ message: 'Only farmers can sign this agreement' });
+    }
+
+    const { digitalSignature, acceptedTerms = true } = req.body || {};
+    const order = await Order.findById(req.params.orderId);
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (!idsEqual(order.farmerId, req.user._id)) {
+      return res.status(403).json({ message: 'Not authorized to sign this agreement' });
+    }
+
+    let agreement = await Agreement.findOne({ orderId: order._id });
+    if (!agreement && order.paymentStatus === 'paid') {
+      agreement = await ensureAgreementForOrder(order._id);
+    }
+
+    if (!agreement) {
+      return res.status(400).json({ message: 'Agreement not generated yet. Complete payment first.' });
+    }
+
+    if (agreement.status === 'completed') {
+      return res.status(400).json({ message: 'Agreement is already completed' });
+    }
+
+    if (agreement.status === 'cancelled') {
+      return res.status(400).json({ message: 'Agreement is cancelled and cannot be signed' });
+    }
+
+    if (agreement.farmerSignature?.signed) {
+      return res.status(400).json({ message: 'Farmer has already signed this agreement' });
+    }
+
+    agreement.farmerSignature = {
+      signed: true,
+      signedAt: new Date(),
+      digitalSignature: digitalSignature || req.user.name,
+      acceptedTerms: acceptedTerms !== false,
+    };
+    agreement.status = 'pending_trader';
+    await agreement.save();
+
+    order.agreementId = agreement._id;
+    order.agreementStatus = 'pending_trader';
+    if (!order.agreementGeneratedAt) {
+      order.agreementGeneratedAt = agreement.createdAt;
+    }
+    await order.save();
+
+    await emitOrderStatusUpdate(order._id, 'agreement_farmer_signed');
+
+    const populatedAgreement = await Agreement.findById(agreement._id)
+      .populate('orderId', 'orderNumber totalAmount paymentStatus status')
+      .populate('farmerId', 'name phone')
+      .populate('traderId', 'name phone')
+      .populate('generatedAfterTransaction', 'referenceNumber amount status paymentMethod completedAt');
+
+    res.json({
+      success: true,
+      message: 'Agreement signed successfully. Waiting for trader signature.',
+      data: populatedAgreement,
+    });
+  } catch (error) {
+    console.error('Farmer sign agreement error:', error);
+    res.status(500).json({ message: 'Failed to sign agreement', error: error.message });
+  }
+});
+
+app.post('/api/agreements/trader-sign/:orderId', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'trader') {
+      return res.status(403).json({ message: 'Only traders can sign this agreement' });
+    }
+
+    const { digitalSignature, acceptedTerms = true } = req.body || {};
+    const order = await Order.findById(req.params.orderId);
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (!idsEqual(order.traderId, req.user._id)) {
+      return res.status(403).json({ message: 'Not authorized to sign this agreement' });
+    }
+
+    const agreement = await Agreement.findOne({ orderId: order._id });
+    if (!agreement) {
+      return res.status(404).json({ message: 'Agreement not found' });
+    }
+
+    if (!agreement.farmerSignature?.signed) {
+      return res.status(400).json({ message: 'Farmer must sign the agreement first' });
+    }
+
+    if (agreement.status === 'completed' || agreement.traderSignature?.signed) {
+      return res.status(400).json({ message: 'Agreement is already completed' });
+    }
+
+    if (agreement.status === 'cancelled') {
+      return res.status(400).json({ message: 'Agreement is cancelled and cannot be signed' });
+    }
+
+    agreement.traderSignature = {
+      signed: true,
+      signedAt: new Date(),
+      digitalSignature: digitalSignature || req.user.name,
+      acceptedTerms: acceptedTerms !== false,
+    };
+    agreement.status = 'completed';
+    agreement.completedAt = new Date();
+    await agreement.save();
+
+    order.agreementId = agreement._id;
+    order.agreementStatus = 'completed';
+    if (!order.agreementGeneratedAt) {
+      order.agreementGeneratedAt = agreement.createdAt;
+    }
+
+    if (order.status === 'delivered' && order.paymentStatus === 'paid') {
+      order.status = 'completed';
+    }
+
+    await order.save();
+
+    await emitOrderStatusUpdate(order._id, 'agreement_trader_signed');
+
+    const populatedAgreement = await Agreement.findById(agreement._id)
+      .populate('orderId', 'orderNumber totalAmount paymentStatus status')
+      .populate('farmerId', 'name phone')
+      .populate('traderId', 'name phone')
+      .populate('generatedAfterTransaction', 'referenceNumber amount status paymentMethod completedAt');
+
+    res.json({
+      success: true,
+      message: 'Agreement completed successfully',
+      data: populatedAgreement,
+    });
+  } catch (error) {
+    console.error('Trader sign agreement error:', error);
+    res.status(500).json({ message: 'Failed to sign agreement', error: error.message });
+  }
+});
+
+app.post('/api/agreements/cancel/:orderId', authenticateToken, async (req, res) => {
+  try {
+    const { reason = '' } = req.body || {};
+
+    const order = await Order.findById(req.params.orderId);
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    const canCancel =
+      req.user.role === 'admin' ||
+      idsEqual(order.farmerId, req.user._id) ||
+      idsEqual(order.traderId, req.user._id);
+
+    if (!canCancel) {
+      return res.status(403).json({ message: 'Not authorized to cancel this agreement' });
+    }
+
+    const agreement = await Agreement.findOne({ orderId: order._id });
+    if (!agreement) {
+      return res.status(404).json({ message: 'Agreement not found' });
+    }
+
+    if (agreement.status === 'completed') {
+      return res.status(400).json({ message: 'Completed agreement cannot be cancelled' });
+    }
+
+    if (agreement.status === 'cancelled') {
+      return res.status(400).json({ message: 'Agreement is already cancelled' });
+    }
+
+    agreement.status = 'cancelled';
+    agreement.cancelledBy = req.user._id;
+    agreement.cancellationReason = reason || 'Agreement cancelled by participant';
+    agreement.cancelledAt = new Date();
+    await agreement.save();
+
+    order.agreementStatus = 'cancelled';
+    order.agreementId = agreement._id;
+    await order.save();
+
+    await emitOrderStatusUpdate(order._id, 'agreement_cancelled');
+
+    res.json({
+      success: true,
+      message: 'Agreement cancelled successfully',
+      data: agreement,
+    });
+  } catch (error) {
+    console.error('Cancel agreement error:', error);
+    res.status(500).json({ message: 'Failed to cancel agreement', error: error.message });
   }
 });
 

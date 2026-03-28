@@ -156,7 +156,7 @@ const MyOrdersScreen = ({ navigation }) => {
   const filteredOrders = filterOrders(orders);
 
   const renderOrder = ({ item }) => {
-    const canMarkReady = item.status === 'Accepted' || item.status === 'Both Agreed';
+    const canMarkReady = ['Accepted', 'Both Agreed', 'Payment Received'].includes(item.status);
     const canCancel = ['Pending', 'Farmer Agreed', 'Both Agreed'].includes(item.status);
 
     return (

@@ -138,7 +138,7 @@ const FarmerDashboardScreen = ({ navigation }) => {
       value: formatCurrency(stats.totalEarnings),
       icon: 'account-balance-wallet',
       color: '#6A1B9A',
-      screen: 'MyOrders',
+      screen: 'Payments',
     },
   ];
 
@@ -184,6 +184,13 @@ const FarmerDashboardScreen = ({ navigation }) => {
       icon: 'account-balance',
       color: '#1565C0',
       screen: 'BankDetails',
+    },
+    {
+      title: 'Earnings & Payments',
+      description: 'Track receivables, settlements, and legal agreements',
+      icon: 'account-balance-wallet',
+      color: '#00897B',
+      screen: 'Payments',
     },
     {
       title: t('farmer.dashboard.kycVerification'),

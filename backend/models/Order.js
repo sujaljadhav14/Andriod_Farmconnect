@@ -74,6 +74,18 @@ const orderSchema = new mongoose.Schema({
     },
     paidAt: Date,
   },
+  agreementId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Agreement',
+  },
+  agreementStatus: {
+    type: String,
+    enum: ['none', 'pending_farmer', 'pending_trader', 'completed', 'cancelled'],
+    default: 'none',
+  },
+  agreementGeneratedAt: {
+    type: Date,
+  },
   deliveryDetails: {
     address: String,
     city: String,

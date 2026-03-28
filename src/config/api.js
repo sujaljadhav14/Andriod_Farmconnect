@@ -68,7 +68,10 @@ export const API_ENDPOINTS = {
 
   // Agreements
   AGREEMENTS: {
+    LIST: '/api/agreements',
+    STATS: '/api/agreements/stats',
     GET: (orderId) => `/api/agreements/${orderId}`,
+    EXPORT: (orderId) => `/api/agreements/${orderId}/export`,
     FARMER_SIGN: (orderId) => `/api/agreements/farmer-sign/${orderId}`,
     TRADER_SIGN: (orderId) => `/api/agreements/trader-sign/${orderId}`,
     CANCEL: (orderId) => `/api/agreements/cancel/${orderId}`,
