@@ -547,7 +547,7 @@ const OrderDetailScreen = ({ route, navigation }) => {
         <View style={styles.agreementHeader}>
           <Text style={styles.cardTitle}>Legal Agreement</Text>
           {agreement && (
-            <View style={[styles.agreementStatusPill, { borderColor: agreementStatusColor }]}> 
+            <View style={[styles.agreementStatusPill, { borderColor: agreementStatusColor }]}>
               <Text style={[styles.agreementStatusPillText, { color: agreementStatusColor }]}>
                 {agreement.status}
               </Text>

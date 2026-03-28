@@ -6,21 +6,21 @@ import AdminPaymentsAgreementsScreen from '../screens/admin/AdminPaymentsAgreeme
 const Stack = createNativeStackNavigator();
 
 const AdminNavigator = () => {
-  return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: '#512DA8' },
-        headerTintColor: Colors.white,
-        headerTitleStyle: { fontWeight: '600' },
-      }}
-    >
-      <Stack.Screen
-        name="AdminPaymentsAgreements"
-        component={AdminPaymentsAgreementsScreen}
-        options={{ title: 'Admin Monitor' }}
-      />
-    </Stack.Navigator>
-  );
+    return (
+        <Stack.Navigator
+            screenOptions={{
+                headerStyle: { backgroundColor: '#512DA8' },
+                headerTintColor: Colors.white,
+                headerTitleStyle: { fontWeight: '600' },
+            }}
+        >
+            <Stack.Screen
+                name="AdminPaymentsAgreements"
+                component={AdminPaymentsAgreementsScreen}
+                options={{ title: 'Admin Monitor' }}
+            />
+        </Stack.Navigator>
+    );
 };
 
 export default AdminNavigator;
