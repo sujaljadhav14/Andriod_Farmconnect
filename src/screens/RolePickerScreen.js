@@ -38,7 +38,7 @@ const roles = [
   {
     id: 'admin',
     title: 'Admin',
-    subtitle: 'Monitor transactions and legal agreements',
+    subtitle: 'Manage users, oversee operations and resolve disputes',
     icon: 'admin-panel-settings',
     color: '#512DA8',
     nav: 'AdminMain',

@@ -29,6 +29,23 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  accountStatus: {
+    type: String,
+    enum: ['active', 'suspended', 'banned'],
+    default: 'active',
+  },
+  accountStatusReason: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+  accountStatusUpdatedAt: {
+    type: Date,
+  },
+  accountStatusUpdatedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  },
   otp: {
     code: String,
     expiry: Date,

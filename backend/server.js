@@ -18,6 +18,7 @@ const Order = require('./models/Order');
 const Vehicle = require('./models/Vehicle');
 const Transaction = require('./models/Transaction');
 const Agreement = require('./models/Agreement');
+const Dispute = require('./models/Dispute');
 const CommunityPost = require('./models/CommunityPost');
 const Task = require('./models/Task');
 
@@ -87,6 +88,19 @@ const authenticateToken = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({ message: 'User not found' });
     }
+
+    if (user.accountStatus === 'banned') {
+      return res.status(403).json({
+        message: user.accountStatusReason || 'Your account has been banned by admin',
+      });
+    }
+
+    if (user.accountStatus === 'suspended') {
+      return res.status(403).json({
+        message: user.accountStatusReason || 'Your account is temporarily suspended by admin',
+      });
+    }
+
     req.user = user;
     next();
   } catch (error) {
@@ -139,6 +153,8 @@ const serializeUser = (user) => ({
   phone: user.phone,
   role: user.role,
   isVerified: user.isVerified,
+  accountStatus: user.accountStatus || 'active',
+  accountStatusReason: user.accountStatusReason || '',
   kycStatus: normalizeKycStatus(user.kycStatus),
   bankDetails: user.bankDetails || {},
   location: user.location || {},
@@ -146,6 +162,21 @@ const serializeUser = (user) => ({
   createdAt: user.createdAt,
   updatedAt: user.updatedAt,
 });
+
+const ensureAdmin = (req, res) => {
+  if (req.user.role !== 'admin') {
+    res.status(403).json({ message: 'Only admin can access this endpoint' });
+    return false;
+  }
+  return true;
+};
+
+const adminRuntimeSettings = {
+  maintenanceMode: false,
+  allowNewRegistrations: true,
+  supportEmail: 'support@farmconnect.local',
+  maxUploadSizeMb: 5,
+};
 
 const getWeatherMetaFromCode = (weatherCode, isDay = true) => {
   const code = Number(weatherCode || 0);
@@ -670,6 +701,12 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const { name, phone, password, role } = req.body;
 
+    if (!adminRuntimeSettings.allowNewRegistrations) {
+      return res.status(503).json({
+        message: 'New registrations are temporarily disabled by admin',
+      });
+    }
+
     // Validation
     if (!name || !phone || !password || !role) {
       return res.status(400).json({ message: 'All fields are required' });
@@ -747,13 +784,7 @@ app.post('/api/auth/verify-otp', async (req, res) => {
       success: true,
       message: 'Phone number verified successfully',
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        phone: user.phone,
-        role: user.role,
-        isVerified: user.isVerified,
-      },
+      user: serializeUser(user),
     });
   } catch (error) {
     console.error('OTP verification error:', error);
@@ -782,6 +813,18 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid phone number or password' });
     }
 
+    if (user.accountStatus === 'banned') {
+      return res.status(403).json({
+        message: user.accountStatusReason || 'Your account has been banned by admin',
+      });
+    }
+
+    if (user.accountStatus === 'suspended') {
+      return res.status(403).json({
+        message: user.accountStatusReason || 'Your account is temporarily suspended by admin',
+      });
+    }
+
     // Check if user is verified
     if (!user.isVerified) {
       // Generate new OTP for unverified users
@@ -805,13 +848,7 @@ app.post('/api/auth/login', async (req, res) => {
       success: true,
       message: 'Login successful',
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        phone: user.phone,
-        role: user.role,
-        isVerified: user.isVerified,
-      },
+      user: serializeUser(user),
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -3118,6 +3155,868 @@ app.post('/api/agreements/cancel/:orderId', authenticateToken, async (req, res) 
   } catch (error) {
     console.error('Cancel agreement error:', error);
     res.status(500).json({ message: 'Failed to cancel agreement', error: error.message });
+  }
+});
+
+// ============ DISPUTE ROUTES ============
+
+const isDisputeAccessibleByUser = (dispute, user) => {
+  if (user.role === 'admin') return true;
+  return idsEqual(dispute.raisedBy, user._id) || idsEqual(dispute.againstUser, user._id);
+};
+
+app.post('/api/disputes', authenticateToken, async (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      category = 'other',
+      priority = 'medium',
+      orderId,
+      proposalId,
+      againstUserId,
+      evidence = [],
+    } = req.body || {};
+
+    if (!title || !description) {
+      return res.status(400).json({ message: 'title and description are required' });
+    }
+
+    if (orderId) {
+      const order = await Order.findById(orderId);
+      if (!order) {
+        return res.status(404).json({ message: 'Order not found' });
+      }
+
+      const canAccessOrder =
+        req.user.role === 'admin' ||
+        idsEqual(order.farmerId, req.user._id) ||
+        idsEqual(order.traderId, req.user._id) ||
+        idsEqual(order.transportDetails?.driverId, req.user._id);
+
+      if (!canAccessOrder) {
+        return res.status(403).json({ message: 'Not authorized to raise dispute for this order' });
+      }
+    }
+
+    if (proposalId) {
+      const proposal = await Proposal.findById(proposalId);
+      if (!proposal) {
+        return res.status(404).json({ message: 'Proposal not found' });
+      }
+
+      const canAccessProposal =
+        req.user.role === 'admin' ||
+        idsEqual(proposal.farmerId, req.user._id) ||
+        idsEqual(proposal.traderId, req.user._id);
+
+      if (!canAccessProposal) {
+        return res.status(403).json({ message: 'Not authorized to raise dispute for this proposal' });
+      }
+    }
+
+    if (againstUserId) {
+      const againstUser = await User.findById(againstUserId).select('_id');
+      if (!againstUser) {
+        return res.status(404).json({ message: 'Against user not found' });
+      }
+    }
+
+    const normalizedEvidence = Array.isArray(evidence)
+      ? evidence
+        .map((item) => ({
+          fileUrl: String(item?.fileUrl || '').trim(),
+          note: String(item?.note || '').trim(),
+          uploadedBy: req.user._id,
+          uploadedAt: new Date(),
+        }))
+        .filter((item) => item.fileUrl || item.note)
+      : [];
+
+    const dispute = await Dispute.create({
+      title: String(title).trim(),
+      description: String(description).trim(),
+      category,
+      priority,
+      raisedBy: req.user._id,
+      againstUser: againstUserId || undefined,
+      orderId: orderId || undefined,
+      proposalId: proposalId || undefined,
+      evidence: normalizedEvidence,
+      lastUpdatedBy: req.user._id,
+    });
+
+    const populatedDispute = await Dispute.findById(dispute._id)
+      .populate('raisedBy', 'name phone role')
+      .populate('againstUser', 'name phone role')
+      .populate('orderId', 'orderNumber status totalAmount')
+      .populate('proposalId', 'status totalAmount');
+
+    res.status(201).json({
+      success: true,
+      message: 'Dispute created successfully',
+      data: populatedDispute,
+    });
+  } catch (error) {
+    console.error('Create dispute error:', error);
+    res.status(500).json({ message: 'Failed to create dispute', error: error.message });
+  }
+});
+
+app.get('/api/disputes/my', authenticateToken, async (req, res) => {
+  try {
+    const { status, page = 1, limit = 20 } = req.query;
+    const query = {};
+
+    if (req.user.role !== 'admin') {
+      query.$or = [
+        { raisedBy: req.user._id },
+        { againstUser: req.user._id },
+      ];
+    }
+
+    if (status) {
+      query.status = status;
+    }
+
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(limit) || 20));
+    const skip = (pageNumber - 1) * pageSize;
+
+    const [disputes, total] = await Promise.all([
+      Dispute.find(query)
+        .populate('raisedBy', 'name phone role')
+        .populate('againstUser', 'name phone role')
+        .populate('orderId', 'orderNumber status totalAmount')
+        .populate('proposalId', 'status totalAmount')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(pageSize),
+      Dispute.countDocuments(query),
+    ]);
+
+    res.json({
+      success: true,
+      data: disputes,
+      pagination: {
+        total,
+        page: pageNumber,
+        pages: Math.ceil(total / pageSize),
+        limit: pageSize,
+      },
+    });
+  } catch (error) {
+    console.error('Get my disputes error:', error);
+    res.status(500).json({ message: 'Failed to fetch disputes', error: error.message });
+  }
+});
+
+app.post('/api/disputes/:disputeId/evidence', authenticateToken, upload.single('evidence'), async (req, res) => {
+  try {
+    const dispute = await Dispute.findById(req.params.disputeId);
+    if (!dispute) {
+      return res.status(404).json({ message: 'Dispute not found' });
+    }
+
+    if (!isDisputeAccessibleByUser(dispute, req.user)) {
+      return res.status(403).json({ message: 'Not authorized to update this dispute' });
+    }
+
+    const note = String(req.body?.note || '').trim();
+    const evidenceUrl = req.file
+      ? `/uploads/${req.file.filename}`
+      : String(req.body?.fileUrl || '').trim();
+
+    if (!note && !evidenceUrl) {
+      return res.status(400).json({ message: 'Either note or evidence file is required' });
+    }
+
+    dispute.evidence.push({
+      fileUrl: evidenceUrl,
+      note,
+      uploadedBy: req.user._id,
+      uploadedAt: new Date(),
+    });
+    dispute.lastUpdatedBy = req.user._id;
+
+    if (dispute.status === 'open') {
+      dispute.status = 'in_review';
+    }
+
+    await dispute.save();
+
+    const populatedDispute = await Dispute.findById(dispute._id)
+      .populate('raisedBy', 'name phone role')
+      .populate('againstUser', 'name phone role')
+      .populate('orderId', 'orderNumber status totalAmount')
+      .populate('proposalId', 'status totalAmount')
+      .populate('evidence.uploadedBy', 'name role');
+
+    res.json({
+      success: true,
+      message: 'Dispute evidence added successfully',
+      data: populatedDispute,
+    });
+  } catch (error) {
+    console.error('Add dispute evidence error:', error);
+    res.status(500).json({ message: 'Failed to add dispute evidence', error: error.message });
+  }
+});
+
+// ============ ADMIN ROUTES ============
+
+app.get('/api/admin/stats', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const [
+      usersCount,
+      cropsCount,
+      proposalsCount,
+      ordersCount,
+      transactionsCount,
+      agreementsCount,
+      disputesCount,
+      usersByRole,
+      usersByAccountStatus,
+      ordersByStatus,
+      proposalsByStatus,
+      disputesByStatus,
+      tradeValueRows,
+      completedTransactionAmountRows,
+      recentUsers,
+      recentCrops,
+      recentProposals,
+      recentOrders,
+      recentDisputes,
+    ] = await Promise.all([
+      User.countDocuments({}),
+      Crop.countDocuments({}),
+      Proposal.countDocuments({}),
+      Order.countDocuments({}),
+      Transaction.countDocuments({}),
+      Agreement.countDocuments({}),
+      Dispute.countDocuments({}),
+      User.aggregate([
+        { $group: { _id: '$role', count: { $sum: 1 } } },
+      ]),
+      User.aggregate([
+        { $group: { _id: '$accountStatus', count: { $sum: 1 } } },
+      ]),
+      Order.aggregate([
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]),
+      Proposal.aggregate([
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]),
+      Dispute.aggregate([
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]),
+      Order.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalTradeValue: { $sum: '$totalAmount' },
+          },
+        },
+      ]),
+      Transaction.aggregate([
+        { $match: { status: 'completed' } },
+        {
+          $group: {
+            _id: null,
+            totalTransactionAmount: { $sum: '$amount' },
+          },
+        },
+      ]),
+      User.countDocuments({ createdAt: { $gte: sevenDaysAgo } }),
+      Crop.countDocuments({ createdAt: { $gte: sevenDaysAgo } }),
+      Proposal.countDocuments({ createdAt: { $gte: sevenDaysAgo } }),
+      Order.countDocuments({ createdAt: { $gte: sevenDaysAgo } }),
+      Dispute.countDocuments({ createdAt: { $gte: sevenDaysAgo } }),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        totals: {
+          users: usersCount,
+          crops: cropsCount,
+          proposals: proposalsCount,
+          orders: ordersCount,
+          transactions: transactionsCount,
+          agreements: agreementsCount,
+          disputes: disputesCount,
+        },
+        usersByRole,
+        usersByAccountStatus,
+        ordersByStatus,
+        proposalsByStatus,
+        disputesByStatus,
+        finance: {
+          totalTradeValue: roundAmount(tradeValueRows[0]?.totalTradeValue || 0),
+          totalCompletedTransactionAmount: roundAmount(
+            completedTransactionAmountRows[0]?.totalTransactionAmount || 0
+          ),
+        },
+        last7Days: {
+          newUsers: recentUsers,
+          newCrops: recentCrops,
+          newProposals: recentProposals,
+          newOrders: recentOrders,
+          newDisputes: recentDisputes,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Get admin stats error:', error);
+    res.status(500).json({ message: 'Failed to fetch admin stats', error: error.message });
+  }
+});
+
+app.get('/api/admin/users', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const {
+      role,
+      status,
+      kycStatus,
+      search,
+      page = 1,
+      limit = 25,
+    } = req.query;
+
+    const query = {};
+    if (role && role !== 'all') query.role = role;
+    if (status && status !== 'all') query.accountStatus = status;
+    if (kycStatus && kycStatus !== 'all') {
+      if (kycStatus === 'approved') {
+        query.kycStatus = { $in: ['approved', 'verified'] };
+      } else {
+        query.kycStatus = kycStatus;
+      }
+    }
+
+    if (search) {
+      const searchRegex = new RegExp(String(search).trim(), 'i');
+      query.$or = [
+        { name: searchRegex },
+        { phone: searchRegex },
+      ];
+    }
+
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(limit) || 25));
+    const skip = (pageNumber - 1) * pageSize;
+
+    const [users, total] = await Promise.all([
+      User.find(query)
+        .select('-password -otp')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(pageSize),
+      User.countDocuments(query),
+    ]);
+
+    res.json({
+      success: true,
+      data: users.map((user) => serializeUser(user)),
+      pagination: {
+        total,
+        page: pageNumber,
+        pages: Math.ceil(total / pageSize),
+        limit: pageSize,
+      },
+    });
+  } catch (error) {
+    console.error('Get admin users error:', error);
+    res.status(500).json({ message: 'Failed to fetch users', error: error.message });
+  }
+});
+
+app.get('/api/admin/users/:userId', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const user = await User.findById(req.params.userId).select('-password -otp');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const [
+      cropsCount,
+      proposalsAsTrader,
+      proposalsAsFarmer,
+      ordersAsTrader,
+      ordersAsFarmer,
+      deliveriesCount,
+      disputesRaised,
+      disputesAgainst,
+      recentTransactions,
+    ] = await Promise.all([
+      Crop.countDocuments({ farmerId: user._id }),
+      Proposal.countDocuments({ traderId: user._id }),
+      Proposal.countDocuments({ farmerId: user._id }),
+      Order.countDocuments({ traderId: user._id }),
+      Order.countDocuments({ farmerId: user._id }),
+      Order.countDocuments({ 'transportDetails.driverId': user._id }),
+      Dispute.countDocuments({ raisedBy: user._id }),
+      Dispute.countDocuments({ againstUser: user._id }),
+      Transaction.find({
+        $or: [
+          { payerId: user._id },
+          { payeeId: user._id },
+        ],
+      })
+        .select('referenceNumber amount status paymentMethod createdAt')
+        .sort({ createdAt: -1 })
+        .limit(8),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        user: serializeUser(user),
+        activity: {
+          cropsCount,
+          proposalsAsTrader,
+          proposalsAsFarmer,
+          ordersAsTrader,
+          ordersAsFarmer,
+          deliveriesCount,
+          disputesRaised,
+          disputesAgainst,
+        },
+        recentTransactions,
+      },
+    });
+  } catch (error) {
+    console.error('Get admin user details error:', error);
+    res.status(500).json({ message: 'Failed to fetch user details', error: error.message });
+  }
+});
+
+app.put('/api/admin/users/:userId/suspend', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+    if (idsEqual(req.user._id, req.params.userId)) {
+      return res.status(400).json({ message: 'Admin cannot suspend own account' });
+    }
+
+    const targetUser = await User.findById(req.params.userId).select('-password -otp');
+    if (!targetUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    targetUser.accountStatus = 'suspended';
+    targetUser.accountStatusReason = String(req.body?.reason || 'Account suspended by admin').trim();
+    targetUser.accountStatusUpdatedAt = new Date();
+    targetUser.accountStatusUpdatedBy = req.user._id;
+    await targetUser.save();
+
+    res.json({
+      success: true,
+      message: 'User suspended successfully',
+      data: serializeUser(targetUser),
+    });
+  } catch (error) {
+    console.error('Suspend user error:', error);
+    res.status(500).json({ message: 'Failed to suspend user', error: error.message });
+  }
+});
+
+app.put('/api/admin/users/:userId/activate', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const targetUser = await User.findById(req.params.userId).select('-password -otp');
+    if (!targetUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    targetUser.accountStatus = 'active';
+    targetUser.accountStatusReason = '';
+    targetUser.accountStatusUpdatedAt = new Date();
+    targetUser.accountStatusUpdatedBy = req.user._id;
+    await targetUser.save();
+
+    res.json({
+      success: true,
+      message: 'User activated successfully',
+      data: serializeUser(targetUser),
+    });
+  } catch (error) {
+    console.error('Activate user error:', error);
+    res.status(500).json({ message: 'Failed to activate user', error: error.message });
+  }
+});
+
+app.put('/api/admin/users/:userId/ban', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+    if (idsEqual(req.user._id, req.params.userId)) {
+      return res.status(400).json({ message: 'Admin cannot ban own account' });
+    }
+
+    const targetUser = await User.findById(req.params.userId).select('-password -otp');
+    if (!targetUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    targetUser.accountStatus = 'banned';
+    targetUser.accountStatusReason = String(req.body?.reason || 'Account banned by admin').trim();
+    targetUser.accountStatusUpdatedAt = new Date();
+    targetUser.accountStatusUpdatedBy = req.user._id;
+    await targetUser.save();
+
+    res.json({
+      success: true,
+      message: 'User banned successfully',
+      data: serializeUser(targetUser),
+    });
+  } catch (error) {
+    console.error('Ban user error:', error);
+    res.status(500).json({ message: 'Failed to ban user', error: error.message });
+  }
+});
+
+app.get('/api/admin/orders', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const { status, paymentStatus, search, page = 1, limit = 25 } = req.query;
+    const query = {};
+    if (status && status !== 'all') query.status = status;
+    if (paymentStatus && paymentStatus !== 'all') query.paymentStatus = paymentStatus;
+    if (search) {
+      query.orderNumber = { $regex: String(search).trim(), $options: 'i' };
+    }
+
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(limit) || 25));
+    const skip = (pageNumber - 1) * pageSize;
+
+    const [orders, total] = await Promise.all([
+      Order.find(query)
+        .populate('cropId', 'cropName category unit')
+        .populate('farmerId', 'name phone accountStatus kycStatus')
+        .populate('traderId', 'name phone accountStatus kycStatus')
+        .populate('transportDetails.driverId', 'name phone accountStatus')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(pageSize),
+      Order.countDocuments(query),
+    ]);
+
+    res.json({
+      success: true,
+      data: orders,
+      pagination: {
+        total,
+        page: pageNumber,
+        pages: Math.ceil(total / pageSize),
+        limit: pageSize,
+      },
+    });
+  } catch (error) {
+    console.error('Get admin orders error:', error);
+    res.status(500).json({ message: 'Failed to fetch orders', error: error.message });
+  }
+});
+
+app.get('/api/admin/crops', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const { status, category, search, page = 1, limit = 25 } = req.query;
+    const query = {};
+    if (status && status !== 'all') query.status = status;
+    if (category && category !== 'all') query.category = category;
+    if (search) {
+      const searchRegex = new RegExp(String(search).trim(), 'i');
+      query.$or = [
+        { cropName: searchRegex },
+        { farmerName: searchRegex },
+      ];
+    }
+
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(limit) || 25));
+    const skip = (pageNumber - 1) * pageSize;
+
+    const [crops, total] = await Promise.all([
+      Crop.find(query)
+        .populate('farmerId', 'name phone accountStatus kycStatus')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(pageSize),
+      Crop.countDocuments(query),
+    ]);
+
+    res.json({
+      success: true,
+      data: crops,
+      pagination: {
+        total,
+        page: pageNumber,
+        pages: Math.ceil(total / pageSize),
+        limit: pageSize,
+      },
+    });
+  } catch (error) {
+    console.error('Get admin crops error:', error);
+    res.status(500).json({ message: 'Failed to fetch crops', error: error.message });
+  }
+});
+
+app.get('/api/admin/proposals', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const { status, search, page = 1, limit = 25 } = req.query;
+    const query = {};
+    if (status && status !== 'all') query.status = status;
+    if (search) {
+      query.message = { $regex: String(search).trim(), $options: 'i' };
+    }
+
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(limit) || 25));
+    const skip = (pageNumber - 1) * pageSize;
+
+    const [proposals, total] = await Promise.all([
+      Proposal.find(query)
+        .populate('cropId', 'cropName category unit price farmerName')
+        .populate('farmerId', 'name phone accountStatus kycStatus')
+        .populate('traderId', 'name phone accountStatus kycStatus')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(pageSize),
+      Proposal.countDocuments(query),
+    ]);
+
+    res.json({
+      success: true,
+      data: proposals,
+      pagination: {
+        total,
+        page: pageNumber,
+        pages: Math.ceil(total / pageSize),
+        limit: pageSize,
+      },
+    });
+  } catch (error) {
+    console.error('Get admin proposals error:', error);
+    res.status(500).json({ message: 'Failed to fetch proposals', error: error.message });
+  }
+});
+
+app.get('/api/admin/deliveries', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const { status, page = 1, limit = 25 } = req.query;
+    const query = {
+      'transportDetails.driverId': { $exists: true, $ne: null },
+    };
+    if (status && status !== 'all') query.status = status;
+
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(limit) || 25));
+    const skip = (pageNumber - 1) * pageSize;
+
+    const [deliveries, total] = await Promise.all([
+      Order.find(query)
+        .populate('cropId', 'cropName category unit')
+        .populate('farmerId', 'name phone')
+        .populate('traderId', 'name phone')
+        .populate('transportDetails.driverId', 'name phone accountStatus')
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(pageSize),
+      Order.countDocuments(query),
+    ]);
+
+    res.json({
+      success: true,
+      data: deliveries,
+      pagination: {
+        total,
+        page: pageNumber,
+        pages: Math.ceil(total / pageSize),
+        limit: pageSize,
+      },
+    });
+  } catch (error) {
+    console.error('Get admin deliveries error:', error);
+    res.status(500).json({ message: 'Failed to fetch deliveries', error: error.message });
+  }
+});
+
+app.get('/api/admin/disputes', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const {
+      status,
+      priority,
+      category,
+      search,
+      page = 1,
+      limit = 25,
+    } = req.query;
+
+    const query = {};
+    if (status && status !== 'all') query.status = status;
+    if (priority && priority !== 'all') query.priority = priority;
+    if (category && category !== 'all') query.category = category;
+    if (search) {
+      const searchRegex = new RegExp(String(search).trim(), 'i');
+      query.$or = [
+        { title: searchRegex },
+        { description: searchRegex },
+      ];
+    }
+
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(limit) || 25));
+    const skip = (pageNumber - 1) * pageSize;
+
+    const [disputes, total] = await Promise.all([
+      Dispute.find(query)
+        .populate('raisedBy', 'name phone role accountStatus')
+        .populate('againstUser', 'name phone role accountStatus')
+        .populate('orderId', 'orderNumber status totalAmount')
+        .populate('proposalId', 'status totalAmount')
+        .populate('resolution.resolvedBy', 'name role')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(pageSize),
+      Dispute.countDocuments(query),
+    ]);
+
+    res.json({
+      success: true,
+      data: disputes,
+      pagination: {
+        total,
+        page: pageNumber,
+        pages: Math.ceil(total / pageSize),
+        limit: pageSize,
+      },
+    });
+  } catch (error) {
+    console.error('Get admin disputes error:', error);
+    res.status(500).json({ message: 'Failed to fetch disputes', error: error.message });
+  }
+});
+
+app.put('/api/admin/disputes/:disputeId/status', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const {
+      status,
+      resolutionNote = '',
+      action = '',
+    } = req.body || {};
+
+    const allowedStatuses = ['open', 'in_review', 'resolved', 'rejected', 'closed'];
+    if (!allowedStatuses.includes(String(status || '').trim())) {
+      return res.status(400).json({ message: 'Invalid dispute status' });
+    }
+
+    const dispute = await Dispute.findById(req.params.disputeId);
+    if (!dispute) {
+      return res.status(404).json({ message: 'Dispute not found' });
+    }
+
+    dispute.status = status;
+    dispute.lastUpdatedBy = req.user._id;
+
+    if (['resolved', 'rejected', 'closed'].includes(status)) {
+      dispute.resolution = {
+        ...(dispute.resolution || {}),
+        note: String(resolutionNote || dispute.resolution?.note || '').trim(),
+        action: String(action || dispute.resolution?.action || '').trim(),
+        resolvedBy: req.user._id,
+        resolvedAt: new Date(),
+      };
+    } else if (status === 'in_review') {
+      dispute.resolution = {
+        ...(dispute.resolution || {}),
+        note: String(resolutionNote || dispute.resolution?.note || '').trim(),
+        action: String(action || dispute.resolution?.action || '').trim(),
+      };
+    }
+
+    await dispute.save();
+
+    const populatedDispute = await Dispute.findById(dispute._id)
+      .populate('raisedBy', 'name phone role accountStatus')
+      .populate('againstUser', 'name phone role accountStatus')
+      .populate('orderId', 'orderNumber status totalAmount')
+      .populate('proposalId', 'status totalAmount')
+      .populate('resolution.resolvedBy', 'name role');
+
+    res.json({
+      success: true,
+      message: 'Dispute status updated successfully',
+      data: populatedDispute,
+    });
+  } catch (error) {
+    console.error('Update admin dispute status error:', error);
+    res.status(500).json({ message: 'Failed to update dispute status', error: error.message });
+  }
+});
+
+app.get('/api/admin/settings', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    res.json({
+      success: true,
+      data: adminRuntimeSettings,
+    });
+  } catch (error) {
+    console.error('Get admin settings error:', error);
+    res.status(500).json({ message: 'Failed to fetch settings', error: error.message });
+  }
+});
+
+app.put('/api/admin/settings', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const updates = req.body || {};
+
+    if (updates.maintenanceMode !== undefined) {
+      adminRuntimeSettings.maintenanceMode = Boolean(updates.maintenanceMode);
+    }
+    if (updates.allowNewRegistrations !== undefined) {
+      adminRuntimeSettings.allowNewRegistrations = Boolean(updates.allowNewRegistrations);
+    }
+    if (updates.supportEmail !== undefined) {
+      adminRuntimeSettings.supportEmail = String(updates.supportEmail || '').trim();
+    }
+    if (updates.maxUploadSizeMb !== undefined) {
+      const maxUploadSizeMb = Number(updates.maxUploadSizeMb);
+      if (Number.isFinite(maxUploadSizeMb)) {
+        adminRuntimeSettings.maxUploadSizeMb = Math.min(100, Math.max(1, maxUploadSizeMb));
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Admin settings updated successfully',
+      data: adminRuntimeSettings,
+    });
+  } catch (error) {
+    console.error('Update admin settings error:', error);
+    res.status(500).json({ message: 'Failed to update settings', error: error.message });
   }
 });
 

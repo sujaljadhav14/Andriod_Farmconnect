@@ -161,8 +161,10 @@ export const API_ENDPOINTS = {
     KYC_REJECT: (kycId) => `/api/auth/kyc-reject/${kycId}`,
     ALL_ORDERS: '/api/admin/orders',
     ALL_CROPS: '/api/admin/crops',
+    ALL_PROPOSALS: '/api/admin/proposals',
     ALL_DELIVERIES: '/api/admin/deliveries',
     DISPUTES: '/api/admin/disputes',
+    UPDATE_DISPUTE_STATUS: (disputeId) => `/api/admin/disputes/${disputeId}/status`,
     SETTINGS: '/api/admin/settings',
   },
 };
