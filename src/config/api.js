@@ -145,6 +145,7 @@ export const API_ENDPOINTS = {
   ANALYTICS: {
     PRICE_TREND: '/api/analytics/price-trend',
     TOP_CROPS: '/api/analytics/top-crops',
+    FARMER_NETWORK: '/api/analytics/farmer-network',
   },
 
   // Admin

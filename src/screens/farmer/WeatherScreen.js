@@ -1,50 +1,158 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
+  TouchableOpacity,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useIsFocused } from '@react-navigation/native';
+import * as Location from 'expo-location';
 import { Colors } from '../../constants/colors';
+import weatherService from '../../services/weatherService';
 
-const forecast = [
-  { day: 'Today', temp: '32\u00B0', low: '22\u00B0', icon: 'wb-sunny', condition: 'Sunny', rain: '0%' },
-  { day: 'Tomorrow', temp: '30\u00B0', low: '21\u00B0', icon: 'cloud', condition: 'Cloudy', rain: '20%' },
-  { day: 'Wed', temp: '28\u00B0', low: '20\u00B0', icon: 'grain', condition: 'Light Rain', rain: '60%' },
-  { day: 'Thu', temp: '29\u00B0', low: '21\u00B0', icon: 'wb-cloudy', condition: 'Partly Cloudy', rain: '10%' },
-  { day: 'Fri', temp: '31\u00B0', low: '22\u00B0', icon: 'wb-sunny', condition: 'Sunny', rain: '0%' },
-];
+const buildAdvisory = (weather) => {
+  const rainChance = weather?.forecast?.[0]?.precipitationChance || 0;
+  const wind = weather?.current?.windSpeedKmh || 0;
+  const uv = weather?.current?.uvIndex || 0;
+
+  if (rainChance >= 60) {
+    return 'High rain probability today. Plan harvest and transport before peak rain windows.';
+  }
+  if (wind >= 25) {
+    return 'Strong winds expected. Secure crop coverings and check greenhouse support lines.';
+  }
+  if (uv >= 7) {
+    return 'High UV conditions. Prefer irrigation and field work during early morning or evening.';
+  }
+
+  return 'Weather looks stable for regular farm operations today. Keep monitoring moisture levels.';
+};
+
+const formatTemperature = (value) => `${Math.round(Number(value || 0))}°C`;
+
+const formatForecastTemperature = (value) => `${Math.round(Number(value || 0))}°`;
 
 const WeatherScreen = () => {
+  const isFocused = useIsFocused();
+
+  const [weather, setWeather] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+
+  const resolveCoordinates = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (status !== 'granted') {
+        return null;
+      }
+
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      if (!position?.coords) return null;
+
+      return {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      };
+    } catch (permissionError) {
+      return null;
+    }
+  };
+
+  const loadWeather = useCallback(async (showLoader = true) => {
+    if (showLoader) setLoading(true);
+    setError('');
+
+    try {
+      const coordinates = await resolveCoordinates();
+      const weatherPayload = await weatherService.getWeather(coordinates || {});
+      setWeather(weatherPayload);
+    } catch (loadError) {
+      console.error('Weather load error:', loadError);
+      setError(loadError.message || 'Failed to load weather updates');
+      setWeather(null);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isFocused) {
+      loadWeather();
+    }
+  }, [isFocused, loadWeather]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadWeather(false);
+  }, [loadWeather]);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+        <Text style={styles.loadingText}>Loading weather updates...</Text>
+      </View>
+    );
+  }
+
+  if (!weather) {
+    return (
+      <View style={styles.errorContainer}>
+        <MaterialIcons name="cloud-off" size={52} color={Colors.textSecondary} />
+        <Text style={styles.errorTitle}>Weather unavailable</Text>
+        <Text style={styles.errorText}>{error || 'Unable to fetch weather data right now.'}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={() => loadWeather()}>
+          <Text style={styles.retryButtonText}>Try Again</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const advisoryText = buildAdvisory(weather);
+  const current = weather.current || {};
+  const forecast = weather.forecast || [];
+
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />}
+    >
       <View style={styles.currentWeather}>
-        <MaterialIcons name="wb-sunny" size={64} color="#FFC107" />
-        <Text style={styles.currentTemp}>32\u00B0C</Text>
-        <Text style={styles.currentCondition}>Sunny</Text>
-        <Text style={styles.location}>Pune, Maharashtra</Text>
+        <MaterialIcons name={current.icon || 'wb-sunny'} size={64} color="#FFC107" />
+        <Text style={styles.currentTemp}>{formatTemperature(current.temperatureC)}</Text>
+        <Text style={styles.currentCondition}>{current.condition || 'Weather Update'}</Text>
+        <Text style={styles.location}>{weather.location?.name || 'Current Location'}</Text>
       </View>
 
       <View style={styles.detailsGrid}>
         <View style={styles.detailCard}>
           <MaterialIcons name="water-drop" size={24} color="#1565C0" />
-          <Text style={styles.detailValue}>45%</Text>
+          <Text style={styles.detailValue}>{current.humidity || 0}%</Text>
           <Text style={styles.detailLabel}>Humidity</Text>
         </View>
         <View style={styles.detailCard}>
           <MaterialIcons name="air" size={24} color="#757575" />
-          <Text style={styles.detailValue}>12 km/h</Text>
+          <Text style={styles.detailValue}>{Math.round(current.windSpeedKmh || 0)} km/h</Text>
           <Text style={styles.detailLabel}>Wind</Text>
         </View>
         <View style={styles.detailCard}>
           <MaterialIcons name="wb-twilight" size={24} color="#E65100" />
-          <Text style={styles.detailValue}>5</Text>
+          <Text style={styles.detailValue}>{Math.round(current.uvIndex || 0)}</Text>
           <Text style={styles.detailLabel}>UV Index</Text>
         </View>
         <View style={styles.detailCard}>
           <MaterialIcons name="visibility" size={24} color="#2E7D32" />
-          <Text style={styles.detailValue}>10 km</Text>
+          <Text style={styles.detailValue}>{Math.round(current.visibilityKm || 0)} km</Text>
           <Text style={styles.detailLabel}>Visibility</Text>
         </View>
       </View>
@@ -54,15 +162,15 @@ const WeatherScreen = () => {
         {forecast.map((day, index) => (
           <View key={index} style={styles.forecastRow}>
             <Text style={styles.forecastDay}>{day.day}</Text>
-            <MaterialIcons name={day.icon} size={24} color="#FFC107" />
+            <MaterialIcons name={day.icon || 'wb-sunny'} size={24} color="#FFC107" />
             <Text style={styles.forecastCondition}>{day.condition}</Text>
             <View style={styles.forecastTemps}>
-              <Text style={styles.forecastHigh}>{day.temp}</Text>
-              <Text style={styles.forecastLow}>{day.low}</Text>
+              <Text style={styles.forecastHigh}>{formatForecastTemperature(day.tempMaxC)}</Text>
+              <Text style={styles.forecastLow}>{formatForecastTemperature(day.tempMinC)}</Text>
             </View>
             <View style={styles.rainChance}>
               <MaterialIcons name="water-drop" size={14} color="#1565C0" />
-              <Text style={styles.rainText}>{day.rain}</Text>
+              <Text style={styles.rainText}>{Math.round(day.precipitationChance || 0)}%</Text>
             </View>
           </View>
         ))}
@@ -72,11 +180,16 @@ const WeatherScreen = () => {
         <MaterialIcons name="warning" size={24} color="#E65100" />
         <View style={styles.alertContent}>
           <Text style={styles.alertTitle}>Weather Advisory</Text>
-          <Text style={styles.alertText}>
-            Light rain expected on Wednesday. Consider harvesting tomatoes before then.
-          </Text>
+          <Text style={styles.alertText}>{advisoryText}</Text>
         </View>
       </View>
+
+      {!!error && (
+        <View style={styles.inlineErrorCard}>
+          <MaterialIcons name="error-outline" size={18} color={Colors.error} />
+          <Text style={styles.inlineErrorText}>{error}</Text>
+        </View>
+      )}
 
       <View style={{ height: 20 }} />
     </ScrollView>
@@ -87,6 +200,49 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    backgroundColor: Colors.background,
+  },
+  errorTitle: {
+    marginTop: 12,
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  errorText: {
+    marginTop: 8,
+    fontSize: 13,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  retryButton: {
+    marginTop: 14,
+    backgroundColor: Colors.primary,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 13,
   },
   currentWeather: {
     alignItems: 'center',
@@ -221,6 +377,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.text,
     lineHeight: 18,
+  },
+  inlineErrorCard: {
+    marginHorizontal: 16,
+    marginTop: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FFCDD2',
+    backgroundColor: '#FFEBEE',
+    borderRadius: 8,
+    padding: 10,
+  },
+  inlineErrorText: {
+    marginLeft: 8,
+    fontSize: 12,
+    color: Colors.error,
+    flex: 1,
   },
 });
 

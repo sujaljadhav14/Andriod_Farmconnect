@@ -45,8 +45,29 @@ const userSchema = new mongoose.Schema({
   },
   kycStatus: {
     type: String,
-    enum: ['pending', 'submitted', 'verified', 'rejected'],
+    enum: ['pending', 'submitted', 'verified', 'approved', 'rejected'],
     default: 'pending',
+  },
+  kycDetails: {
+    fullName: String,
+    documentType: {
+      type: String,
+      enum: ['aadhaar', 'pan', 'passport', 'voter_id', 'driving_license', 'other'],
+    },
+    documentNumber: String,
+    address: String,
+    businessName: String,
+    businessAddress: String,
+    gstNumber: String,
+    notes: String,
+    idProofImage: String,
+    submittedAt: Date,
+    reviewedAt: Date,
+    reviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    rejectionReason: String,
   },
   bankDetails: {
     accountNumber: String,

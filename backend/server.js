@@ -18,6 +18,8 @@ const Order = require('./models/Order');
 const Vehicle = require('./models/Vehicle');
 const Transaction = require('./models/Transaction');
 const Agreement = require('./models/Agreement');
+const CommunityPost = require('./models/CommunityPost');
+const Task = require('./models/Task');
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -124,6 +126,144 @@ const toIdString = (value) => {
 const idsEqual = (left, right) => toIdString(left) && toIdString(left) === toIdString(right);
 
 const roundAmount = (value) => Math.round(Number(value || 0) * 100) / 100;
+
+const normalizeKycStatus = (status = 'pending') => {
+  const normalized = String(status || 'pending').toLowerCase();
+  if (normalized === 'verified') return 'approved';
+  return normalized;
+};
+
+const serializeUser = (user) => ({
+  id: user._id,
+  name: user.name,
+  phone: user.phone,
+  role: user.role,
+  isVerified: user.isVerified,
+  kycStatus: normalizeKycStatus(user.kycStatus),
+  bankDetails: user.bankDetails || {},
+  location: user.location || {},
+  kycDetails: user.kycDetails || {},
+  createdAt: user.createdAt,
+  updatedAt: user.updatedAt,
+});
+
+const getWeatherMetaFromCode = (weatherCode, isDay = true) => {
+  const code = Number(weatherCode || 0);
+
+  if (code === 0) {
+    return { condition: 'Clear Sky', icon: isDay ? 'wb-sunny' : 'nightlight-round' };
+  }
+  if ([1, 2].includes(code)) {
+    return { condition: 'Partly Cloudy', icon: 'wb-cloudy' };
+  }
+  if (code === 3) {
+    return { condition: 'Overcast', icon: 'cloud' };
+  }
+  if ([45, 48].includes(code)) {
+    return { condition: 'Fog', icon: 'foggy' };
+  }
+  if ([51, 53, 55, 56, 57].includes(code)) {
+    return { condition: 'Drizzle', icon: 'grain' };
+  }
+  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) {
+    return { condition: 'Rain', icon: 'water-drop' };
+  }
+  if ([71, 73, 75, 77, 85, 86].includes(code)) {
+    return { condition: 'Snow', icon: 'ac-unit' };
+  }
+  if ([95, 96, 99].includes(code)) {
+    return { condition: 'Thunderstorm', icon: 'flash-on' };
+  }
+
+  return { condition: 'Weather Update', icon: 'wb-sunny' };
+};
+
+const fetchWeatherPayload = async ({ latitude, longitude, city = '', state = '' }) => {
+  let resolvedLatitude = Number(latitude);
+  let resolvedLongitude = Number(longitude);
+  let resolvedLocationName = city || 'Current Location';
+
+  if (!Number.isFinite(resolvedLatitude) || !Number.isFinite(resolvedLongitude)) {
+    const searchQuery = [city, state, 'India'].filter(Boolean).join(', ').trim();
+    const geocodeQuery = searchQuery || 'Pune, Maharashtra, India';
+
+    const geocodeUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(geocodeQuery)}&count=1&language=en&format=json`;
+    const geocodeResponse = await fetch(geocodeUrl);
+
+    if (!geocodeResponse.ok) {
+      throw new Error('Failed to resolve weather location');
+    }
+
+    const geocodeData = await geocodeResponse.json();
+    const topLocation = geocodeData?.results?.[0];
+    if (!topLocation) {
+      throw new Error('No weather location found for the provided query');
+    }
+
+    resolvedLatitude = Number(topLocation.latitude);
+    resolvedLongitude = Number(topLocation.longitude);
+    resolvedLocationName = [topLocation.name, topLocation.admin1, topLocation.country].filter(Boolean).join(', ');
+  }
+
+  const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${resolvedLatitude}&longitude=${resolvedLongitude}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,uv_index,visibility,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=5`;
+  const weatherResponse = await fetch(weatherUrl);
+
+  if (!weatherResponse.ok) {
+    throw new Error('Failed to fetch weather data');
+  }
+
+  const weatherData = await weatherResponse.json();
+  const current = weatherData?.current || {};
+  const daily = weatherData?.daily || {};
+
+  const currentMeta = getWeatherMetaFromCode(current.weather_code, Number(current.is_day || 1) === 1);
+
+  const forecast = (daily.time || []).slice(0, 5).map((date, index) => {
+    const dailyCode = Number((daily.weather_code || [])[index] || 0);
+    const dailyMeta = getWeatherMetaFromCode(dailyCode, true);
+
+    const dateObject = new Date(`${date}T12:00:00`);
+    const dayLabel = index === 0
+      ? 'Today'
+      : index === 1
+        ? 'Tomorrow'
+        : dateObject.toLocaleDateString('en-US', { weekday: 'short' });
+
+    return {
+      day: dayLabel,
+      date,
+      tempMaxC: roundAmount((daily.temperature_2m_max || [])[index]),
+      tempMinC: roundAmount((daily.temperature_2m_min || [])[index]),
+      precipitationChance: Number((daily.precipitation_probability_max || [])[index] || 0),
+      weatherCode: dailyCode,
+      condition: dailyMeta.condition,
+      icon: dailyMeta.icon,
+    };
+  });
+
+  return {
+    location: {
+      name: resolvedLocationName,
+      latitude: resolvedLatitude,
+      longitude: resolvedLongitude,
+      timezone: weatherData?.timezone || 'auto',
+    },
+    current: {
+      temperatureC: roundAmount(current.temperature_2m),
+      humidity: Number(current.relative_humidity_2m || 0),
+      precipitationMm: roundAmount(current.precipitation),
+      windSpeedKmh: roundAmount(current.wind_speed_10m),
+      uvIndex: roundAmount(current.uv_index),
+      visibilityKm: roundAmount(Number(current.visibility || 0) / 1000),
+      weatherCode: Number(current.weather_code || 0),
+      condition: currentMeta.condition,
+      icon: currentMeta.icon,
+      isDay: Number(current.is_day || 1) === 1,
+      timestamp: current.time || new Date().toISOString(),
+    },
+    forecast,
+  };
+};
 
 const buildAgreementDocumentBody = ({ order, cropName, farmerName, traderName }) => {
   const deliveryParts = [
@@ -431,6 +571,98 @@ app.get('/health', (req, res) => {
   });
 });
 
+// ============ WEATHER ROUTES ============
+
+app.get('/api/weather/get-weather', authenticateToken, async (req, res) => {
+  try {
+    const { latitude, longitude, city = '', state = '' } = req.query;
+
+    const fallbackLatitude = req.user?.location?.coordinates?.latitude;
+    const fallbackLongitude = req.user?.location?.coordinates?.longitude;
+
+    const weatherPayload = await fetchWeatherPayload({
+      latitude: latitude ?? fallbackLatitude,
+      longitude: longitude ?? fallbackLongitude,
+      city: city || req.user?.location?.city || 'Pune',
+      state: state || req.user?.location?.state || 'Maharashtra',
+    });
+
+    res.json({
+      success: true,
+      data: weatherPayload,
+    });
+  } catch (error) {
+    console.error('Get weather error:', error);
+    res.status(500).json({ message: 'Failed to fetch weather data', error: error.message });
+  }
+});
+
+app.get('/api/weather/my-locations', authenticateToken, async (req, res) => {
+  try {
+    const latitude = req.user?.location?.coordinates?.latitude;
+    const longitude = req.user?.location?.coordinates?.longitude;
+
+    const primaryLabel = [
+      req.user?.location?.city,
+      req.user?.location?.state,
+    ].filter(Boolean).join(', ') || 'Current Location';
+
+    res.json({
+      success: true,
+      data: [
+        {
+          id: 'primary',
+          label: primaryLabel,
+          latitude: Number.isFinite(Number(latitude)) ? Number(latitude) : null,
+          longitude: Number.isFinite(Number(longitude)) ? Number(longitude) : null,
+          isFavorite: true,
+        },
+      ],
+    });
+  } catch (error) {
+    console.error('Get weather locations error:', error);
+    res.status(500).json({ message: 'Failed to fetch weather locations', error: error.message });
+  }
+});
+
+app.get('/api/weather/location/:weatherId', authenticateToken, async (req, res) => {
+  try {
+    if (req.params.weatherId !== 'primary') {
+      return res.status(404).json({ message: 'Weather location not found' });
+    }
+
+    const latitude = req.user?.location?.coordinates?.latitude;
+    const longitude = req.user?.location?.coordinates?.longitude;
+
+    const weatherPayload = await fetchWeatherPayload({
+      latitude,
+      longitude,
+      city: req.user?.location?.city || 'Pune',
+      state: req.user?.location?.state || 'Maharashtra',
+    });
+
+    res.json({
+      success: true,
+      data: weatherPayload,
+    });
+  } catch (error) {
+    console.error('Get weather location details error:', error);
+    res.status(500).json({ message: 'Failed to fetch weather location details', error: error.message });
+  }
+});
+
+app.put('/api/weather/favorite/:weatherId', authenticateToken, async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      message: `Weather location ${req.params.weatherId} marked as favorite`,
+    });
+  } catch (error) {
+    console.error('Set weather favorite error:', error);
+    res.status(500).json({ message: 'Failed to update weather favorite', error: error.message });
+  }
+});
+
 // ============ AUTHENTICATION ROUTES ============
 
 // Register new user
@@ -588,18 +820,967 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // Get current user
-app.get('/api/auth/me', authenticateToken, (req, res) => {
-  res.json({
-    success: true,
-    user: {
-      id: req.user._id,
-      name: req.user.name,
-      phone: req.user.phone,
-      role: req.user.role,
-      isVerified: req.user.isVerified,
-      kycStatus: req.user.kycStatus,
-    },
-  });
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('-password -otp');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({
+      success: true,
+      user: serializeUser(user),
+    });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({ message: 'Failed to fetch profile', error: error.message });
+  }
+});
+
+app.put('/api/auth/update-bank-details', authenticateToken, async (req, res) => {
+  try {
+    if (!['farmer', 'trader'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Only farmers and traders can update bank details' });
+    }
+
+    const {
+      accountNumber,
+      ifscCode,
+      accountHolderName,
+    } = req.body || {};
+
+    if (!accountNumber || !ifscCode || !accountHolderName) {
+      return res.status(400).json({
+        message: 'accountNumber, ifscCode, and accountHolderName are required',
+      });
+    }
+
+    const normalizedAccountNumber = String(accountNumber).replace(/\s+/g, '');
+    const normalizedIfsc = String(ifscCode).trim().toUpperCase();
+    const normalizedHolderName = String(accountHolderName).trim();
+
+    if (normalizedAccountNumber.length < 8 || normalizedAccountNumber.length > 24) {
+      return res.status(400).json({ message: 'Please enter a valid bank account number' });
+    }
+
+    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(normalizedIfsc)) {
+      return res.status(400).json({ message: 'Please enter a valid IFSC code' });
+    }
+
+    req.user.bankDetails = {
+      accountNumber: normalizedAccountNumber,
+      ifscCode: normalizedIfsc,
+      accountHolderName: normalizedHolderName,
+    };
+
+    await req.user.save();
+
+    res.json({
+      success: true,
+      message: 'Bank details updated successfully',
+      user: serializeUser(req.user),
+    });
+  } catch (error) {
+    console.error('Update bank details error:', error);
+    res.status(500).json({ message: 'Failed to update bank details', error: error.message });
+  }
+});
+
+app.post('/api/auth/submit-kyc', authenticateToken, upload.single('idProofImage'), async (req, res) => {
+  try {
+    if (!['farmer', 'trader'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Only farmers and traders can submit KYC' });
+    }
+
+    const {
+      fullName,
+      documentType,
+      documentNumber,
+      address = '',
+      businessName = '',
+      businessAddress = '',
+      gstNumber = '',
+      notes = '',
+    } = req.body || {};
+
+    if (!fullName || !documentType || !documentNumber) {
+      return res.status(400).json({
+        message: 'fullName, documentType, and documentNumber are required',
+      });
+    }
+
+    const allowedDocumentTypes = ['aadhaar', 'pan', 'passport', 'voter_id', 'driving_license', 'other'];
+    const normalizedDocumentType = String(documentType).toLowerCase().trim();
+    if (!allowedDocumentTypes.includes(normalizedDocumentType)) {
+      return res.status(400).json({ message: 'Invalid document type' });
+    }
+
+    const previousKycDetails = req.user.kycDetails || {};
+    const uploadedIdProofImage = req.file ? `/uploads/${req.file.filename}` : previousKycDetails.idProofImage || '';
+
+    req.user.kycDetails = {
+      ...previousKycDetails,
+      fullName: String(fullName).trim(),
+      documentType: normalizedDocumentType,
+      documentNumber: String(documentNumber).trim(),
+      address: String(address || '').trim(),
+      businessName: String(businessName || '').trim(),
+      businessAddress: String(businessAddress || '').trim(),
+      gstNumber: String(gstNumber || '').trim().toUpperCase(),
+      notes: String(notes || '').trim(),
+      idProofImage: uploadedIdProofImage,
+      submittedAt: new Date(),
+      reviewedAt: undefined,
+      reviewedBy: undefined,
+      rejectionReason: '',
+    };
+
+    req.user.kycStatus = 'submitted';
+    await req.user.save();
+
+    res.json({
+      success: true,
+      message: 'KYC submitted successfully',
+      data: {
+        kycStatus: normalizeKycStatus(req.user.kycStatus),
+        kycDetails: req.user.kycDetails,
+      },
+      user: serializeUser(req.user),
+    });
+  } catch (error) {
+    console.error('Submit KYC error:', error);
+    res.status(500).json({ message: 'Failed to submit KYC', error: error.message });
+  }
+});
+
+app.get('/api/auth/my-kyc', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('-password -otp');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        kycStatus: normalizeKycStatus(user.kycStatus),
+        kycDetails: user.kycDetails || {},
+      },
+    });
+  } catch (error) {
+    console.error('Get my KYC error:', error);
+    res.status(500).json({ message: 'Failed to fetch KYC status', error: error.message });
+  }
+});
+
+app.get('/api/auth/get-all-kyc', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Only admin can access KYC records' });
+    }
+
+    const users = await User.find({
+      $or: [
+        { kycStatus: { $in: ['submitted', 'approved', 'verified', 'rejected'] } },
+        { 'kycDetails.submittedAt': { $exists: true } },
+      ],
+    })
+      .select('-password -otp')
+      .sort({ updatedAt: -1 });
+
+    res.json({
+      success: true,
+      data: users.map((candidate) => ({
+        id: candidate._id,
+        name: candidate.name,
+        phone: candidate.phone,
+        role: candidate.role,
+        kycStatus: normalizeKycStatus(candidate.kycStatus),
+        kycDetails: candidate.kycDetails || {},
+        updatedAt: candidate.updatedAt,
+      })),
+      total: users.length,
+    });
+  } catch (error) {
+    console.error('Get all KYC error:', error);
+    res.status(500).json({ message: 'Failed to fetch KYC records', error: error.message });
+  }
+});
+
+app.put('/api/auth/kyc-approve/:kycId', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Only admin can approve KYC' });
+    }
+
+    const candidate = await User.findById(req.params.kycId).select('-password -otp');
+    if (!candidate) {
+      return res.status(404).json({ message: 'KYC record not found' });
+    }
+
+    candidate.kycStatus = 'approved';
+    candidate.kycDetails = {
+      ...(candidate.kycDetails || {}),
+      reviewedAt: new Date(),
+      reviewedBy: req.user._id,
+      rejectionReason: '',
+    };
+    await candidate.save();
+
+    res.json({
+      success: true,
+      message: 'KYC approved successfully',
+      data: {
+        id: candidate._id,
+        kycStatus: normalizeKycStatus(candidate.kycStatus),
+        kycDetails: candidate.kycDetails || {},
+      },
+    });
+  } catch (error) {
+    console.error('Approve KYC error:', error);
+    res.status(500).json({ message: 'Failed to approve KYC', error: error.message });
+  }
+});
+
+app.put('/api/auth/kyc-reject/:kycId', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Only admin can reject KYC' });
+    }
+
+    const { reason = 'KYC details did not pass verification checks' } = req.body || {};
+
+    const candidate = await User.findById(req.params.kycId).select('-password -otp');
+    if (!candidate) {
+      return res.status(404).json({ message: 'KYC record not found' });
+    }
+
+    candidate.kycStatus = 'rejected';
+    candidate.kycDetails = {
+      ...(candidate.kycDetails || {}),
+      reviewedAt: new Date(),
+      reviewedBy: req.user._id,
+      rejectionReason: String(reason).trim(),
+    };
+    await candidate.save();
+
+    res.json({
+      success: true,
+      message: 'KYC rejected successfully',
+      data: {
+        id: candidate._id,
+        kycStatus: normalizeKycStatus(candidate.kycStatus),
+        kycDetails: candidate.kycDetails || {},
+      },
+    });
+  } catch (error) {
+    console.error('Reject KYC error:', error);
+    res.status(500).json({ message: 'Failed to reject KYC', error: error.message });
+  }
+});
+
+// ============ COMMUNITY ROUTES ============
+
+const serializeCommunityPost = (post, viewerId) => {
+  const likedByMe = (post.likes || []).some((userId) => idsEqual(userId, viewerId));
+
+  return {
+    id: post._id,
+    content: post.content,
+    cropCategory: post.cropCategory,
+    tags: post.tags || [],
+    author: post.authorId ? {
+      id: post.authorId._id,
+      name: post.authorId.name,
+      role: post.authorId.role,
+      phone: post.authorId.phone,
+    } : null,
+    likeCount: (post.likes || []).length,
+    commentCount: (post.comments || []).length,
+    likedByMe,
+    comments: (post.comments || []).map((comment) => ({
+      id: comment._id,
+      content: comment.content,
+      createdAt: comment.createdAt,
+      user: comment.userId ? {
+        id: comment.userId._id,
+        name: comment.userId.name,
+        role: comment.userId.role,
+      } : null,
+    })),
+    isPinned: post.isPinned,
+    createdAt: post.createdAt,
+    updatedAt: post.updatedAt,
+  };
+};
+
+app.get('/api/community/posts', authenticateToken, async (req, res) => {
+  try {
+    const { category, page = 1, limit = 20 } = req.query;
+
+    const query = {
+      isActive: true,
+    };
+
+    if (category && category !== 'all' && category !== 'General') {
+      query.cropCategory = category;
+    }
+
+    const pageNumber = Math.max(1, Number(page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(limit) || 20));
+    const skip = (pageNumber - 1) * pageSize;
+
+    const [posts, total] = await Promise.all([
+      CommunityPost.find(query)
+        .populate('authorId', 'name role phone')
+        .populate('comments.userId', 'name role')
+        .sort({ isPinned: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(pageSize),
+      CommunityPost.countDocuments(query),
+    ]);
+
+    res.json({
+      success: true,
+      data: posts.map((post) => serializeCommunityPost(post, req.user._id)),
+      pagination: {
+        total,
+        page: pageNumber,
+        pages: Math.ceil(total / pageSize),
+        limit: pageSize,
+      },
+    });
+  } catch (error) {
+    console.error('Get community posts error:', error);
+    res.status(500).json({ message: 'Failed to fetch community posts', error: error.message });
+  }
+});
+
+app.post('/api/community/posts', authenticateToken, async (req, res) => {
+  try {
+    const {
+      content,
+      cropCategory = 'General',
+      tags = [],
+    } = req.body || {};
+
+    if (!content || String(content).trim().length < 3) {
+      return res.status(400).json({ message: 'Post content must be at least 3 characters' });
+    }
+
+    const normalizedTags = Array.isArray(tags)
+      ? tags.map((tag) => String(tag).trim()).filter(Boolean).slice(0, 5)
+      : String(tags || '')
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean)
+        .slice(0, 5);
+
+    const post = await CommunityPost.create({
+      authorId: req.user._id,
+      content: String(content).trim(),
+      cropCategory,
+      tags: normalizedTags,
+    });
+
+    const populatedPost = await CommunityPost.findById(post._id)
+      .populate('authorId', 'name role phone')
+      .populate('comments.userId', 'name role');
+
+    res.status(201).json({
+      success: true,
+      message: 'Post created successfully',
+      data: serializeCommunityPost(populatedPost, req.user._id),
+    });
+  } catch (error) {
+    console.error('Create community post error:', error);
+    res.status(500).json({ message: 'Failed to create post', error: error.message });
+  }
+});
+
+app.post('/api/community/posts/:postId/like', authenticateToken, async (req, res) => {
+  try {
+    const post = await CommunityPost.findOne({
+      _id: req.params.postId,
+      isActive: true,
+    });
+
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    const currentUserId = req.user._id;
+    const alreadyLiked = (post.likes || []).some((userId) => idsEqual(userId, currentUserId));
+
+    if (alreadyLiked) {
+      post.likes = (post.likes || []).filter((userId) => !idsEqual(userId, currentUserId));
+    } else {
+      post.likes = [...(post.likes || []), currentUserId];
+    }
+
+    await post.save();
+
+    res.json({
+      success: true,
+      message: alreadyLiked ? 'Post unliked successfully' : 'Post liked successfully',
+      data: {
+        id: post._id,
+        likedByMe: !alreadyLiked,
+        likeCount: (post.likes || []).length,
+      },
+    });
+  } catch (error) {
+    console.error('Like community post error:', error);
+    res.status(500).json({ message: 'Failed to like post', error: error.message });
+  }
+});
+
+app.post('/api/community/posts/:postId/comment', authenticateToken, async (req, res) => {
+  try {
+    const { comment, content } = req.body || {};
+    const commentText = String(comment || content || '').trim();
+
+    if (!commentText) {
+      return res.status(400).json({ message: 'Comment text is required' });
+    }
+
+    const post = await CommunityPost.findOne({
+      _id: req.params.postId,
+      isActive: true,
+    });
+
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    post.comments.push({
+      userId: req.user._id,
+      content: commentText,
+      createdAt: new Date(),
+    });
+    await post.save();
+
+    const populatedPost = await CommunityPost.findById(post._id)
+      .populate('authorId', 'name role phone')
+      .populate('comments.userId', 'name role');
+
+    res.json({
+      success: true,
+      message: 'Comment added successfully',
+      data: serializeCommunityPost(populatedPost, req.user._id),
+    });
+  } catch (error) {
+    console.error('Comment community post error:', error);
+    res.status(500).json({ message: 'Failed to comment on post', error: error.message });
+  }
+});
+
+// ============ FARM TASK ROUTES ============
+
+app.post('/api/tasks/create', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'farmer') {
+      return res.status(403).json({ message: 'Only farmers can create tasks' });
+    }
+
+    const {
+      title,
+      description = '',
+      category = 'Other',
+      priority = 'medium',
+      dueDate,
+      notes = '',
+      reminderAt,
+    } = req.body || {};
+
+    if (!title || !dueDate) {
+      return res.status(400).json({ message: 'title and dueDate are required' });
+    }
+
+    const parsedDueDate = new Date(dueDate);
+    if (Number.isNaN(parsedDueDate.getTime())) {
+      return res.status(400).json({ message: 'Invalid dueDate value' });
+    }
+
+    const task = await Task.create({
+      farmerId: req.user._id,
+      title: String(title).trim(),
+      description: String(description).trim(),
+      category,
+      priority,
+      dueDate: parsedDueDate,
+      notes: String(notes).trim(),
+      reminderAt: reminderAt ? new Date(reminderAt) : undefined,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Task created successfully',
+      data: task,
+    });
+  } catch (error) {
+    console.error('Create farm task error:', error);
+    res.status(500).json({ message: 'Failed to create task', error: error.message });
+  }
+});
+
+app.get('/api/tasks/my-tasks', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'farmer') {
+      return res.status(403).json({ message: 'Only farmers can access tasks' });
+    }
+
+    const {
+      status,
+      category,
+      fromDate,
+      toDate,
+    } = req.query;
+
+    const query = {
+      farmerId: req.user._id,
+    };
+
+    if (status) {
+      query.status = status;
+    }
+    if (category && category !== 'all') {
+      query.category = category;
+    }
+    if (fromDate || toDate) {
+      query.dueDate = {};
+      if (fromDate) query.dueDate.$gte = new Date(fromDate);
+      if (toDate) query.dueDate.$lte = new Date(toDate);
+    }
+
+    const tasks = await Task.find(query)
+      .sort({ dueDate: 1, createdAt: -1 });
+
+    res.json({
+      success: true,
+      data: tasks,
+      total: tasks.length,
+    });
+  } catch (error) {
+    console.error('Get farm tasks error:', error);
+    res.status(500).json({ message: 'Failed to fetch tasks', error: error.message });
+  }
+});
+
+app.put('/api/tasks/update/:taskId', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'farmer') {
+      return res.status(403).json({ message: 'Only farmers can update tasks' });
+    }
+
+    const task = await Task.findOne({
+      _id: req.params.taskId,
+      farmerId: req.user._id,
+    });
+
+    if (!task) {
+      return res.status(404).json({ message: 'Task not found' });
+    }
+
+    const {
+      title,
+      description,
+      category,
+      priority,
+      dueDate,
+      status,
+      notes,
+      reminderAt,
+    } = req.body || {};
+
+    if (title !== undefined) task.title = String(title).trim();
+    if (description !== undefined) task.description = String(description).trim();
+    if (category) task.category = category;
+    if (priority) task.priority = priority;
+    if (notes !== undefined) task.notes = String(notes).trim();
+    if (dueDate) {
+      const parsedDueDate = new Date(dueDate);
+      if (Number.isNaN(parsedDueDate.getTime())) {
+        return res.status(400).json({ message: 'Invalid dueDate value' });
+      }
+      task.dueDate = parsedDueDate;
+    }
+    if (reminderAt !== undefined) {
+      task.reminderAt = reminderAt ? new Date(reminderAt) : undefined;
+    }
+    if (status) {
+      task.status = status;
+      task.completedAt = status === 'completed' ? new Date() : undefined;
+    }
+
+    await task.save();
+
+    res.json({
+      success: true,
+      message: 'Task updated successfully',
+      data: task,
+    });
+  } catch (error) {
+    console.error('Update farm task error:', error);
+    res.status(500).json({ message: 'Failed to update task', error: error.message });
+  }
+});
+
+app.delete('/api/tasks/delete/:taskId', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'farmer') {
+      return res.status(403).json({ message: 'Only farmers can delete tasks' });
+    }
+
+    const task = await Task.findOneAndDelete({
+      _id: req.params.taskId,
+      farmerId: req.user._id,
+    });
+
+    if (!task) {
+      return res.status(404).json({ message: 'Task not found' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Task deleted successfully',
+    });
+  } catch (error) {
+    console.error('Delete farm task error:', error);
+    res.status(500).json({ message: 'Failed to delete task', error: error.message });
+  }
+});
+
+// ============ ANALYTICS ROUTES ============
+
+app.get('/api/analytics/price-trend', authenticateToken, async (req, res) => {
+  try {
+    if (!['trader', 'admin'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Only traders and admin can access analytics' });
+    }
+
+    const requestedDays = Number(req.query.days || 14);
+    const days = Math.min(90, Math.max(7, requestedDays || 14));
+    const windowStart = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const listings = await Crop.find({
+      createdAt: { $gte: windowStart },
+      status: { $in: ['available', 'reserved', 'sold'] },
+    }).select('price category cropName createdAt');
+
+    const groupedByDay = new Map();
+    const groupedByCategory = new Map();
+
+    listings.forEach((listing) => {
+      const dayKey = listing.createdAt.toISOString().slice(0, 10);
+      const price = Number(listing.price || 0);
+      const category = listing.category || 'Other';
+
+      if (!groupedByDay.has(dayKey)) {
+        groupedByDay.set(dayKey, {
+          day: dayKey,
+          sum: 0,
+          count: 0,
+          minPrice: price,
+          maxPrice: price,
+        });
+      }
+
+      const dayEntry = groupedByDay.get(dayKey);
+      dayEntry.sum += price;
+      dayEntry.count += 1;
+      dayEntry.minPrice = Math.min(dayEntry.minPrice, price);
+      dayEntry.maxPrice = Math.max(dayEntry.maxPrice, price);
+
+      if (!groupedByCategory.has(category)) {
+        groupedByCategory.set(category, {
+          category,
+          sum: 0,
+          count: 0,
+        });
+      }
+
+      const categoryEntry = groupedByCategory.get(category);
+      categoryEntry.sum += price;
+      categoryEntry.count += 1;
+    });
+
+    const points = Array.from(groupedByDay.values())
+      .map((entry) => ({
+        day: entry.day,
+        averagePrice: roundAmount(entry.sum / Math.max(entry.count, 1)),
+        minPrice: roundAmount(entry.minPrice),
+        maxPrice: roundAmount(entry.maxPrice),
+        listings: entry.count,
+      }))
+      .sort((a, b) => a.day.localeCompare(b.day));
+
+    const categoryAverages = Array.from(groupedByCategory.values())
+      .map((entry) => ({
+        category: entry.category,
+        averagePrice: roundAmount(entry.sum / Math.max(entry.count, 1)),
+        listings: entry.count,
+      }))
+      .sort((a, b) => b.averagePrice - a.averagePrice);
+
+    res.json({
+      success: true,
+      data: {
+        days,
+        points,
+        categoryAverages,
+        generatedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error('Get price trend analytics error:', error);
+    res.status(500).json({ message: 'Failed to fetch price trend analytics', error: error.message });
+  }
+});
+
+app.get('/api/analytics/top-crops', authenticateToken, async (req, res) => {
+  try {
+    if (!['trader', 'admin'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Only traders and admin can access analytics' });
+    }
+
+    const orderScopeMatch = {};
+    if (req.user.role === 'trader') {
+      orderScopeMatch.traderId = req.user._id;
+    }
+
+    const [summaryRows, topCropsRows, topFarmersRows] = await Promise.all([
+      Order.aggregate([
+        { $match: orderScopeMatch },
+        {
+          $group: {
+            _id: null,
+            totalOrders: { $sum: 1 },
+            totalSpend: { $sum: '$totalAmount' },
+            completedOrders: {
+              $sum: {
+                $cond: [{ $in: ['$status', ['delivered', 'completed']] }, 1, 0],
+              },
+            },
+            activeOrders: {
+              $sum: {
+                $cond: [{ $in: ['$status', ['confirmed', 'payment_pending', 'payment_received', 'ready_for_pickup', 'in_transit']] }, 1, 0],
+              },
+            },
+          },
+        },
+      ]),
+      Order.aggregate([
+        { $match: orderScopeMatch },
+        {
+          $group: {
+            _id: '$cropId',
+            ordersCount: { $sum: 1 },
+            totalQuantity: { $sum: '$quantity' },
+            totalRevenue: { $sum: '$totalAmount' },
+            averagePrice: { $avg: '$pricePerUnit' },
+          },
+        },
+        { $sort: { totalRevenue: -1 } },
+        { $limit: 8 },
+        {
+          $lookup: {
+            from: 'crops',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'crop',
+          },
+        },
+        {
+          $unwind: {
+            path: '$crop',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+      ]),
+      Order.aggregate([
+        { $match: orderScopeMatch },
+        {
+          $group: {
+            _id: '$farmerId',
+            ordersCount: { $sum: 1 },
+            totalRevenue: { $sum: '$totalAmount' },
+            lastTradeAt: { $max: '$updatedAt' },
+          },
+        },
+        { $sort: { totalRevenue: -1 } },
+        { $limit: 10 },
+        {
+          $lookup: {
+            from: 'users',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'farmer',
+          },
+        },
+        {
+          $unwind: {
+            path: '$farmer',
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+      ]),
+    ]);
+
+    const summary = summaryRows[0] || {
+      totalOrders: 0,
+      totalSpend: 0,
+      completedOrders: 0,
+      activeOrders: 0,
+    };
+
+    res.json({
+      success: true,
+      data: {
+        summary: {
+          totalOrders: Number(summary.totalOrders || 0),
+          completedOrders: Number(summary.completedOrders || 0),
+          activeOrders: Number(summary.activeOrders || 0),
+          totalSpend: roundAmount(summary.totalSpend || 0),
+          averageOrderValue: summary.totalOrders
+            ? roundAmount((summary.totalSpend || 0) / summary.totalOrders)
+            : 0,
+        },
+        topCrops: topCropsRows.map((entry) => ({
+          cropId: entry._id,
+          cropName: entry.crop?.cropName || 'Unknown Crop',
+          category: entry.crop?.category || 'Other',
+          unit: entry.crop?.unit || 'kg',
+          ordersCount: Number(entry.ordersCount || 0),
+          totalQuantity: roundAmount(entry.totalQuantity || 0),
+          totalRevenue: roundAmount(entry.totalRevenue || 0),
+          averagePrice: roundAmount(entry.averagePrice || 0),
+        })),
+        topFarmers: topFarmersRows.map((entry) => ({
+          farmerId: entry._id,
+          name: entry.farmer?.name || 'Unknown Farmer',
+          phone: entry.farmer?.phone || '',
+          city: entry.farmer?.location?.city || '',
+          state: entry.farmer?.location?.state || '',
+          kycStatus: normalizeKycStatus(entry.farmer?.kycStatus || 'pending'),
+          ordersCount: Number(entry.ordersCount || 0),
+          totalRevenue: roundAmount(entry.totalRevenue || 0),
+          lastTradeAt: entry.lastTradeAt || null,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error('Get top crop analytics error:', error);
+    res.status(500).json({ message: 'Failed to fetch top crop analytics', error: error.message });
+  }
+});
+
+app.get('/api/analytics/farmer-network', authenticateToken, async (req, res) => {
+  try {
+    if (!['trader', 'admin'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Only traders and admin can access farmer network analytics' });
+    }
+
+    const ordersQuery = {};
+    const proposalsQuery = {};
+    if (req.user.role === 'trader') {
+      ordersQuery.traderId = req.user._id;
+      proposalsQuery.traderId = req.user._id;
+    }
+
+    const [orders, proposals] = await Promise.all([
+      Order.find(ordersQuery)
+        .populate('farmerId', 'name phone location kycStatus')
+        .select('farmerId status totalAmount updatedAt createdAt'),
+      Proposal.find(proposalsQuery)
+        .populate('farmerId', 'name phone location kycStatus')
+        .select('farmerId status updatedAt createdAt'),
+    ]);
+
+    const network = new Map();
+
+    const ensureEntry = (farmer) => {
+      const farmerId = toIdString(farmer?._id || farmer);
+      if (!farmerId) return null;
+
+      if (!network.has(farmerId)) {
+        network.set(farmerId, {
+          farmerId,
+          name: farmer?.name || 'Unknown Farmer',
+          phone: farmer?.phone || '',
+          city: farmer?.location?.city || '',
+          state: farmer?.location?.state || '',
+          kycStatus: normalizeKycStatus(farmer?.kycStatus || 'pending'),
+          proposalCount: 0,
+          acceptedProposals: 0,
+          rejectedProposals: 0,
+          orderCount: 0,
+          completedOrders: 0,
+          totalRevenue: 0,
+          lastInteractionAt: null,
+        });
+      }
+
+      return network.get(farmerId);
+    };
+
+    proposals.forEach((proposal) => {
+      const entry = ensureEntry(proposal.farmerId);
+      if (!entry) return;
+
+      entry.proposalCount += 1;
+      if (proposal.status === 'accepted') entry.acceptedProposals += 1;
+      if (proposal.status === 'rejected') entry.rejectedProposals += 1;
+
+      const interactionDate = proposal.updatedAt || proposal.createdAt;
+      if (interactionDate && (!entry.lastInteractionAt || interactionDate > entry.lastInteractionAt)) {
+        entry.lastInteractionAt = interactionDate;
+      }
+    });
+
+    orders.forEach((order) => {
+      const entry = ensureEntry(order.farmerId);
+      if (!entry) return;
+
+      entry.orderCount += 1;
+      entry.totalRevenue += Number(order.totalAmount || 0);
+      if (['delivered', 'completed'].includes(order.status)) {
+        entry.completedOrders += 1;
+      }
+
+      const interactionDate = order.updatedAt || order.createdAt;
+      if (interactionDate && (!entry.lastInteractionAt || interactionDate > entry.lastInteractionAt)) {
+        entry.lastInteractionAt = interactionDate;
+      }
+    });
+
+    const networkRows = Array.from(network.values())
+      .map((entry) => {
+        const totalInteractions = entry.proposalCount + entry.orderCount;
+        const relationshipStrength = entry.completedOrders >= 3
+          ? 'strong'
+          : entry.completedOrders >= 1 || entry.acceptedProposals >= 1
+            ? 'growing'
+            : 'new';
+
+        return {
+          ...entry,
+          totalRevenue: roundAmount(entry.totalRevenue),
+          totalInteractions,
+          relationshipStrength,
+        };
+      })
+      .sort((a, b) => b.totalRevenue - a.totalRevenue || b.totalInteractions - a.totalInteractions);
+
+    res.json({
+      success: true,
+      data: networkRows,
+      total: networkRows.length,
+    });
+  } catch (error) {
+    console.error('Get farmer network analytics error:', error);
+    res.status(500).json({ message: 'Failed to fetch farmer network analytics', error: error.message });
+  }
 });
 
 // ============ CROP ROUTES ============
