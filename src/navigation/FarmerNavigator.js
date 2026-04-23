@@ -16,6 +16,7 @@ import MarketPricesScreen from '../screens/farmer/MarketPricesScreen';
 import KYCScreen from '../screens/farmer/KYCScreen';
 import CommunityScreen from '../screens/farmer/CommunityScreen';
 import CalendarScreen from '../screens/farmer/CalendarScreen';
+import PaymentsScreen from '../screens/farmer/PaymentsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -119,6 +120,20 @@ const FarmerNavigator = () => {
           headerTintColor: Colors.white,
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="wb-sunny" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Payments"
+        component={PaymentsScreen}
+        options={{
+          tabBarLabel: 'Payments',
+          headerShown: true,
+          headerTitle: 'Earnings & Payments',
+          headerStyle: { backgroundColor: Colors.primary },
+          headerTintColor: Colors.white,
+          tabBarIcon: ({ color, size }) => (
+            <MaterialIcons name="account-balance-wallet" size={size} color={color} />
           ),
         }}
       />

@@ -9,6 +9,56 @@ import { API_ENDPOINTS } from '../config/api';
 
 class OrderService {
   /**
+   * Convert backend snake_case status to UI friendly label
+   */
+  formatStatus(status) {
+    if (!status) return 'Pending';
+
+    const normalized = status.toString().toLowerCase();
+    const statusMap = {
+      confirmed: 'Accepted',
+      payment_pending: 'Awaiting Payment',
+      payment_received: 'Payment Received',
+      ready_for_pickup: 'Ready for Pickup',
+      in_transit: 'In Transit',
+      delivered: 'Delivered',
+      completed: 'Completed',
+      cancelled: 'Cancelled',
+      pending: 'Pending',
+      accepted: 'Accepted',
+      rejected: 'Rejected',
+    };
+
+    if (statusMap[normalized]) {
+      return statusMap[normalized];
+    }
+
+    return normalized
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  /**
+   * Convert backend payment values to UI labels
+   */
+  formatPaymentStatus(paymentStatus) {
+    if (!paymentStatus) return 'Pending';
+
+    const normalized = paymentStatus.toString().toLowerCase();
+    const statusMap = {
+      pending: 'Pending',
+      partial: 'Partially Paid',
+      paid: 'Full Paid',
+      refunded: 'Refunded',
+      processing: 'Processing',
+      completed: 'Completed',
+      failed: 'Failed',
+    };
+
+    return statusMap[normalized] || this.formatStatus(normalized);
+  }
+
+  /**
    * Create a new order
    */
   async createOrder(orderData) {
@@ -71,7 +121,7 @@ class OrderService {
    */
   async cancelOrder(orderId, reason) {
     const response = await apiService.put(API_ENDPOINTS.ORDERS.CANCEL(orderId), {
-      cancellationReason: reason,
+      reason: reason,
     });
     return response;
   }
@@ -80,6 +130,12 @@ class OrderService {
    * Normalize order data for display
    */
   normalizeOrder(order) {
+    const rawStatus = order.status || 'pending';
+    const rawPaymentStatus = order.paymentStatus || 'pending';
+    const paymentDetails = order.paymentDetails || {};
+    const deliveryDetails = order.deliveryDetails || {};
+    const transportDriver = order.transportDetails?.driverId || order.transportId;
+
     return {
       id: order._id || order.id,
       orderNumber: order.orderNumber || `ORD-${(order._id || order.id).slice(-6).toUpperCase()}`,
@@ -112,11 +168,11 @@ class OrderService {
       } : null,
 
       // Transport info (if assigned)
-      transportId: order.transportId?._id || order.transportId,
-      transport: order.transportId ? {
-        id: order.transportId._id || order.transportId.id,
-        name: order.transportId.name,
-        phone: order.transportId.phone,
+      transportId: transportDriver?._id || transportDriver,
+      transport: transportDriver ? {
+        id: transportDriver._id || transportDriver.id,
+        name: transportDriver.name,
+        phone: transportDriver.phone,
       } : null,
 
       // Order details
@@ -128,20 +184,30 @@ class OrderService {
       bookingAmount: order.bookingAmount || 0,
 
       // Status and dates
-      status: order.status || 'Pending',
-      paymentStatus: order.paymentStatus || 'Pending',
-      paymentMethod: order.paymentMethod || 'On Delivery',
+      status: this.formatStatus(rawStatus),
+      statusRaw: rawStatus,
+      paymentStatus: this.formatPaymentStatus(rawPaymentStatus),
+      paymentStatusRaw: rawPaymentStatus,
+      paymentMethod: paymentDetails.method || order.paymentMethod || 'On Delivery',
+      paymentReference: paymentDetails.transactionId || '',
+      paidAmount: Number(paymentDetails.paidAmount || 0),
+      paidAt: paymentDetails.paidAt,
 
       // Agreement
       farmerAgreed: order.farmerAgreed || false,
       traderAgreed: order.traderAgreed || false,
-      agreementStatus: order.agreementStatus,
+      agreementId: order.agreementId?._id || order.agreementId || '',
+      agreementStatus: order.agreementStatus || 'none',
+      agreementGeneratedAt: order.agreementGeneratedAt,
 
       // Delivery info
-      deliveryAddress: order.deliveryAddress || '',
-      deliveryDate: order.deliveryDate,
-      actualDeliveryDate: order.actualDeliveryDate,
-      pickupDate: order.pickupDate,
+      deliveryAddress: deliveryDetails.address || order.deliveryAddress || '',
+      deliveryCity: deliveryDetails.city || '',
+      deliveryState: deliveryDetails.state || '',
+      deliveryPincode: deliveryDetails.pincode || '',
+      deliveryDate: deliveryDetails.scheduledDate || order.deliveryDate,
+      actualDeliveryDate: deliveryDetails.actualDate || order.actualDeliveryDate,
+      pickupDate: order.transportDetails?.pickupTime || order.pickupDate,
 
       // Rejection/cancellation
       rejectionReason: order.rejectionReason || '',
@@ -173,6 +239,8 @@ class OrderService {
         return '#1565C0'; // Blue
       case 'Accepted':
         return '#2E7D32'; // Green
+      case 'Payment Received':
+        return '#2E7D32'; // Green
       case 'Ready for Pickup':
         return '#7B1FA2'; // Purple
       case 'Transport Assigned':
@@ -203,6 +271,8 @@ class OrderService {
         return 'handshake';
       case 'Accepted':
         return 'check-circle';
+      case 'Payment Received':
+        return 'payments';
       case 'Ready for Pickup':
         return 'inventory';
       case 'Transport Assigned':

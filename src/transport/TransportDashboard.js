@@ -8,12 +8,17 @@ import {
   Modal,
   Linking,
 } from 'react-native';
+import { useAuth } from '../context/AuthContext';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
 import { useLanguage } from '../context/LanguageContext';
 
-const TransportDashboard = ({ navigation }) => {
+  const TransportDashboard = ({ navigation }) => {
   const { t } = useLanguage();
+  const { logout } = useAuth(); 
+  const handleLogout = async () => {
+  await logout();
+};
   const [stats, setStats] = useState({
     activeDeliveries: 0,
     completedDeliveries: 0,
@@ -133,7 +138,14 @@ const TransportDashboard = ({ navigation }) => {
             {t('transporter.dashboard.description')}
           </Text>
         </View>
-        <MaterialIcons name="notifications-none" size={28} color={Colors.white} />
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+  <MaterialIcons name="notifications-none" size={28} color={Colors.white} />
+  
+  {/* 🔥 LOGOUT BUTTON */}
+  <TouchableOpacity onPress={handleLogout}>
+    <MaterialIcons name="power-settings-new" size={28} color={Colors.white} />
+  </TouchableOpacity>
+</View>
       </View>
 
       {/* Stats Grid */}

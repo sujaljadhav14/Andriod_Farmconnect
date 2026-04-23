@@ -35,6 +35,14 @@ const roles = [
     color: '#1565C0',
     nav: 'TransportMain',
   },
+  {
+    id: 'admin',
+    title: 'Admin',
+    subtitle: 'Manage users, oversee operations and resolve disputes',
+    icon: 'admin-panel-settings',
+    color: '#512DA8',
+    nav: 'AdminMain',
+  },
 ];
 
 const RolePickerScreen = ({ navigation }) => {

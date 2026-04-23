@@ -584,7 +584,9 @@ const AddCropScreen = ({ navigation, route }) => {
           maximumDate={new Date()}
           onChange={(event, date) => {
             setShowCultivationPicker(false);
-            if (date) setCultivationDate(date);
+            if (event.type === 'set' && date) {
+              setCultivationDate(date);
+            }
           }}
         />
       )}
@@ -597,7 +599,7 @@ const AddCropScreen = ({ navigation, route }) => {
           minimumDate={new Date()}
           onChange={(event, date) => {
             setShowHarvestPicker(false);
-            if (date) {
+            if (event.type === 'set' && date) {
               setExpectedHarvestDate(date);
               setErrors({ ...errors, expectedHarvestDate: null });
             }

@@ -15,12 +15,15 @@ import {
   Alert,
   RefreshControl,
   Linking,
+  ActivityIndicator,
+  Share,
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { useAuth } from '../../context/AuthContext';
 import orderService from '../../services/orderService';
+import agreementService from '../../services/agreementService';
 import { LoadingSpinner, StatusBadge } from '../../components/common';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
@@ -50,9 +53,34 @@ const OrderDetailScreen = ({ route, navigation }) => {
   const [loading, setLoading] = useState(!initialOrder);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [agreement, setAgreement] = useState(null);
+  const [agreementLoading, setAgreementLoading] = useState(false);
+  const [agreementError, setAgreementError] = useState('');
 
   const isFarmer = user?.role === 'farmer';
   const isTrader = user?.role === 'trader';
+
+  const loadAgreementDetails = useCallback(async (targetOrderId, options = {}) => {
+    const { allowMissing = true } = options;
+
+    if (!targetOrderId) {
+      setAgreement(null);
+      return;
+    }
+
+    setAgreementLoading(true);
+    setAgreementError('');
+
+    try {
+      const agreementData = await agreementService.getAgreement(targetOrderId, { allowMissing });
+      setAgreement(agreementData || null);
+    } catch (err) {
+      setAgreement(null);
+      setAgreementError(err.message || 'Failed to load agreement details');
+    } finally {
+      setAgreementLoading(false);
+    }
+  }, []);
 
   const loadOrderDetails = useCallback(async (showLoader = true) => {
     if (!orderId && !initialOrder?.id) return;
@@ -64,17 +92,20 @@ const OrderDetailScreen = ({ route, navigation }) => {
       const response = await orderService.getOrderDetails(orderId || initialOrder?.id);
       const normalizedOrder = orderService.normalizeOrder(response.order || response.data || response);
       setOrder(normalizedOrder);
+      await loadAgreementDetails(normalizedOrder?.id, { allowMissing: true });
     } catch (err) {
       console.error('Failed to load order details:', err);
       setError(err.message || 'Failed to load order details');
       if (!order && initialOrder) {
-        setOrder(orderService.normalizeOrder(initialOrder));
+        const fallbackOrder = orderService.normalizeOrder(initialOrder);
+        setOrder(fallbackOrder);
+        await loadAgreementDetails(fallbackOrder?.id, { allowMissing: true });
       }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [orderId, initialOrder?.id]);
+  }, [orderId, initialOrder?.id, loadAgreementDetails]);
 
   useEffect(() => {
     if (isFocused && (orderId || initialOrder?.id)) {
@@ -135,6 +166,107 @@ const OrderDetailScreen = ({ route, navigation }) => {
     );
   };
 
+  const handleGoToPayments = () => {
+    if (!isTrader || !order?.id) return;
+    navigation.navigate('Payments', { focusOrderId: order.id });
+  };
+
+  const handleSignAgreementAsFarmer = () => {
+    if (!order?.id) return;
+
+    Alert.alert(
+      'Sign Agreement',
+      'Confirm your legal agreement signature for this deal?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign as Farmer',
+          onPress: async () => {
+            try {
+              await agreementService.signAsFarmer(order.id, {
+                digitalSignature: user?.name,
+                acceptedTerms: true,
+              });
+              await loadOrderDetails(false);
+              Alert.alert('Agreement Signed', 'Farmer signature saved. Waiting for trader signature.');
+            } catch (err) {
+              Alert.alert('Error', err.message || 'Failed to sign agreement');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleSignAgreementAsTrader = () => {
+    if (!order?.id) return;
+
+    Alert.alert(
+      'Sign Agreement',
+      'Confirm your legal agreement signature to finalize this deal?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign as Trader',
+          onPress: async () => {
+            try {
+              await agreementService.signAsTrader(order.id, {
+                digitalSignature: user?.name,
+                acceptedTerms: true,
+              });
+              await loadOrderDetails(false);
+              Alert.alert('Agreement Completed', 'Both parties have signed the legal agreement.');
+            } catch (err) {
+              Alert.alert('Error', err.message || 'Failed to sign agreement');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleCancelAgreement = () => {
+    if (!order?.id) return;
+
+    Alert.alert(
+      'Cancel Agreement',
+      'Are you sure you want to cancel this legal agreement?',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Cancel Agreement',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await agreementService.cancelAgreement(order.id, `Cancelled by ${user?.role || 'user'}`);
+              await loadOrderDetails(false);
+              Alert.alert('Agreement Cancelled', 'The legal agreement was cancelled successfully.');
+            } catch (err) {
+              Alert.alert('Error', err.message || 'Failed to cancel agreement');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleShareAgreement = async () => {
+    if (!order?.id || !agreement) return;
+
+    try {
+      const exported = await agreementService.exportAgreement(order.id);
+      const message = exported?.content || agreement.documentBody || 'Agreement details unavailable';
+      const title = exported?.fileName || `${agreement.documentNumber || 'agreement'}.txt`;
+
+      await Share.share({
+        title,
+        message,
+      });
+    } catch (err) {
+      Alert.alert('Error', err.message || 'Failed to export agreement');
+    }
+  };
+
   const handleContactPhone = (phone, personType) => {
     if (phone) {
       Alert.alert(
@@ -191,8 +323,25 @@ const OrderDetailScreen = ({ route, navigation }) => {
     );
   }
 
-  const canMarkReady = isFarmer && (order.status === 'Accepted' || order.status === 'Both Agreed');
+  const canMarkReady = isFarmer && ['Accepted', 'Both Agreed', 'Payment Received'].includes(order.status);
   const canCancel = ['Pending', 'Farmer Agreed', 'Both Agreed'].includes(order.status);
+  const paymentStatusRaw = (order.paymentStatusRaw || '').toLowerCase();
+  const isPaymentCompleted = paymentStatusRaw === 'paid' || paymentStatusRaw === 'completed';
+  const canGoToPayments = isTrader && !isPaymentCompleted && !['Cancelled', 'Completed'].includes(order.status);
+  const canFarmerSignAgreement = isFarmer && agreement && agreement.statusRaw === 'pending_farmer';
+  const canTraderSignAgreement = isTrader && agreement && agreement.statusRaw === 'pending_trader';
+  const canCancelAgreement =
+    !!agreement &&
+    (isFarmer || isTrader) &&
+    ['pending_farmer', 'pending_trader'].includes(agreement.statusRaw);
+  const canShareAgreement = !!agreement;
+
+  const agreementStatusColor =
+    agreement?.statusRaw === 'completed'
+      ? Colors.success
+      : agreement?.statusRaw === 'cancelled'
+        ? Colors.error
+        : '#1565C0';
 
   return (
     <ScrollView
@@ -393,6 +542,83 @@ const OrderDetailScreen = ({ route, navigation }) => {
         </View>
       </View>
 
+      {/* Legal Agreement */}
+      <View style={styles.agreementCard}>
+        <View style={styles.agreementHeader}>
+          <Text style={styles.cardTitle}>Legal Agreement</Text>
+          {agreement && (
+            <View style={[styles.agreementStatusPill, { borderColor: agreementStatusColor }]}>
+              <Text style={[styles.agreementStatusPillText, { color: agreementStatusColor }]}>
+                {agreement.status}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {agreementLoading ? (
+          <View style={styles.agreementLoadingRow}>
+            <ActivityIndicator size="small" color={Colors.primary} />
+            <Text style={styles.agreementLoadingText}>Loading agreement details...</Text>
+          </View>
+        ) : agreement ? (
+          <>
+            <View style={styles.agreementMetaRow}>
+              <Text style={styles.agreementMetaLabel}>Document Number</Text>
+              <Text style={styles.agreementMetaValue}>{agreement.documentNumber || 'N/A'}</Text>
+            </View>
+            <View style={styles.agreementMetaRow}>
+              <Text style={styles.agreementMetaLabel}>Payment Reference</Text>
+              <Text style={styles.agreementMetaValue}>
+                {agreement.generatedAfterTransaction?.referenceNumber || order.paymentReference || 'N/A'}
+              </Text>
+            </View>
+
+            <View style={styles.signatureCardRow}>
+              <View style={styles.signatureCardItem}>
+                <Text style={styles.signatureRole}>Farmer Signature</Text>
+                <Text
+                  style={[
+                    styles.signatureState,
+                    { color: agreement.farmerSignature?.signed ? Colors.success : Colors.warning },
+                  ]}
+                >
+                  {agreement.farmerSignature?.signed ? 'Signed' : 'Pending'}
+                </Text>
+              </View>
+              <View style={styles.signatureCardItem}>
+                <Text style={styles.signatureRole}>Trader Signature</Text>
+                <Text
+                  style={[
+                    styles.signatureState,
+                    { color: agreement.traderSignature?.signed ? Colors.success : Colors.warning },
+                  ]}
+                >
+                  {agreement.traderSignature?.signed ? 'Signed' : 'Pending'}
+                </Text>
+              </View>
+            </View>
+
+            {!!agreement.terms?.cropName && (
+              <Text style={styles.agreementSummaryText}>
+                {agreement.terms.cropName} • {agreement.terms.quantity} {agreement.terms.unit} • {formatCurrency(agreement.terms.totalAmount || order.totalAmount)}
+              </Text>
+            )}
+
+            {!!agreement.cancellationReason && (
+              <Text style={styles.agreementErrorText}>Reason: {agreement.cancellationReason}</Text>
+            )}
+          </>
+        ) : (
+          <Text style={styles.agreementHintText}>
+            {isPaymentCompleted
+              ? 'Payment is complete. Agreement will be available shortly. Pull to refresh if needed.'
+              : 'Agreement is auto-generated after successful dummy payment.'}
+          </Text>
+        )}
+
+        {!!agreementError && <Text style={styles.agreementErrorText}>{agreementError}</Text>}
+      </View>
+
       {/* Status Timeline */}
       <View style={styles.timelineCard}>
         <Text style={styles.cardTitle}>Order Status</Text>
@@ -407,6 +633,7 @@ const OrderDetailScreen = ({ route, navigation }) => {
           {order.status === 'Farmer Agreed' && 'Farmer has agreed. Waiting for trader confirmation.'}
           {order.status === 'Both Agreed' && 'Both parties have agreed to the order.'}
           {order.status === 'Accepted' && 'Order has been accepted and is being prepared.'}
+          {order.status === 'Payment Received' && 'Payment is complete. Farmer can now prepare pickup.'}
           {order.status === 'Ready for Pickup' && 'Crop is ready for pickup or transport.'}
           {order.status === 'Transport Assigned' && 'Transport has been assigned for delivery.'}
           {order.status === 'In Transit' && 'Order is being transported to destination.'}
@@ -418,14 +645,44 @@ const OrderDetailScreen = ({ route, navigation }) => {
       </View>
 
       {/* Action Buttons */}
-      {(canMarkReady || canCancel) && (
+      {(canMarkReady || canCancel || canGoToPayments || canFarmerSignAgreement || canTraderSignAgreement || canCancelAgreement || canShareAgreement) && (
         <View style={styles.actionSection}>
           <Text style={styles.actionTitle}>Actions</Text>
           <View style={styles.actionButtons}>
+            {canGoToPayments && (
+              <TouchableOpacity style={styles.payButton} onPress={handleGoToPayments}>
+                <MaterialIcons name="payment" size={20} color="#FFFFFF" />
+                <Text style={styles.payButtonText}>Pay Now (Dummy)</Text>
+              </TouchableOpacity>
+            )}
             {canMarkReady && (
               <TouchableOpacity style={styles.readyButton} onPress={handleMarkReady}>
                 <MaterialIcons name="check" size={20} color="#FFFFFF" />
                 <Text style={styles.readyButtonText}>Mark Ready for Pickup</Text>
+              </TouchableOpacity>
+            )}
+            {canFarmerSignAgreement && (
+              <TouchableOpacity style={styles.signButton} onPress={handleSignAgreementAsFarmer}>
+                <MaterialIcons name="draw" size={20} color="#FFFFFF" />
+                <Text style={styles.signButtonText}>Sign Agreement (Farmer)</Text>
+              </TouchableOpacity>
+            )}
+            {canTraderSignAgreement && (
+              <TouchableOpacity style={styles.signButton} onPress={handleSignAgreementAsTrader}>
+                <MaterialIcons name="verified" size={20} color="#FFFFFF" />
+                <Text style={styles.signButtonText}>Sign Agreement (Trader)</Text>
+              </TouchableOpacity>
+            )}
+            {canCancelAgreement && (
+              <TouchableOpacity style={styles.cancelAgreementButton} onPress={handleCancelAgreement}>
+                <MaterialIcons name="gavel" size={20} color={Colors.warning} />
+                <Text style={styles.cancelAgreementButtonText}>Cancel Agreement</Text>
+              </TouchableOpacity>
+            )}
+            {canShareAgreement && (
+              <TouchableOpacity style={styles.shareAgreementButton} onPress={handleShareAgreement}>
+                <MaterialIcons name="share" size={20} color={Colors.info} />
+                <Text style={styles.shareAgreementButtonText}>Share Agreement</Text>
               </TouchableOpacity>
             )}
             {canCancel && (
@@ -698,6 +955,94 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginLeft: 4,
   },
+  agreementCard: {
+    backgroundColor: Colors.surface,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 12,
+    padding: 16,
+    elevation: 1,
+  },
+  agreementHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  agreementStatusPill: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  agreementStatusPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  agreementLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  agreementLoadingText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginLeft: 8,
+  },
+  agreementMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  agreementMetaLabel: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  agreementMetaValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.text,
+    maxWidth: '60%',
+    textAlign: 'right',
+  },
+  signatureCardRow: {
+    flexDirection: 'row',
+    marginTop: 8,
+    gap: 10,
+  },
+  signatureCardItem: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    borderRadius: 8,
+    padding: 10,
+  },
+  signatureRole: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginBottom: 4,
+  },
+  signatureState: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  agreementSummaryText: {
+    marginTop: 10,
+    fontSize: 13,
+    color: Colors.text,
+    lineHeight: 18,
+  },
+  agreementHintText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+  agreementErrorText: {
+    marginTop: 10,
+    fontSize: 12,
+    color: Colors.error,
+    lineHeight: 18,
+  },
   timelineCard: {
     backgroundColor: Colors.surface,
     marginHorizontal: 16,
@@ -735,6 +1080,20 @@ const styles = StyleSheet.create({
   actionButtons: {
     gap: 12,
   },
+  payButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E65100',
+    paddingVertical: 14,
+    borderRadius: 10,
+  },
+  payButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginLeft: 8,
+  },
   readyButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -747,6 +1106,50 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+    marginLeft: 8,
+  },
+  signButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1565C0',
+    paddingVertical: 14,
+    borderRadius: 10,
+  },
+  signButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginLeft: 8,
+  },
+  cancelAgreementButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: Colors.warning,
+    paddingVertical: 14,
+    borderRadius: 10,
+  },
+  cancelAgreementButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.warning,
+    marginLeft: 8,
+  },
+  shareAgreementButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: Colors.info,
+    paddingVertical: 14,
+    borderRadius: 10,
+  },
+  shareAgreementButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.info,
     marginLeft: 8,
   },
   cancelButton: {

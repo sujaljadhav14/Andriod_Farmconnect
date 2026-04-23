@@ -11,8 +11,12 @@ class CropService {
   /**
    * Get farmer's crops
    */
-  async getMyCrops() {
-    const response = await apiService.get(API_ENDPOINTS.CROPS.MY_CROPS);
+  async getMyCrops(farmerId) {
+    // Pass farmerId as query parameter
+    const endpoint = farmerId 
+      ? `${API_ENDPOINTS.CROPS.MY_CROPS}?farmerId=${farmerId}`
+      : API_ENDPOINTS.CROPS.MY_CROPS;
+    const response = await apiService.get(endpoint);
     return response;
   }
 
@@ -20,22 +24,30 @@ class CropService {
    * Get all available crops (for traders)
    */
   async getAvailableCrops(filters = {}) {
-    const queryParams = new URLSearchParams();
+    try {
+      const queryParams = new URLSearchParams();
 
-    if (filters.category) queryParams.append('category', filters.category);
-    if (filters.minPrice) queryParams.append('minPrice', filters.minPrice);
-    if (filters.maxPrice) queryParams.append('maxPrice', filters.maxPrice);
-    if (filters.quality) queryParams.append('quality', filters.quality);
-    if (filters.location) queryParams.append('location', filters.location);
-    if (filters.search) queryParams.append('search', filters.search);
+      // Only add filters if they have values
+      if (filters.category && filters.category !== '') queryParams.append('category', filters.category);
+      if (filters.minPrice && filters.minPrice !== '') queryParams.append('minPrice', filters.minPrice);
+      if (filters.maxPrice && filters.maxPrice !== '') queryParams.append('maxPrice', filters.maxPrice);
+      if (filters.quality && filters.quality !== '') queryParams.append('quality', filters.quality);
+      if (filters.location && filters.location !== '') queryParams.append('location', filters.location);
+      if (filters.search && filters.search !== '') queryParams.append('search', filters.search);
 
-    const queryString = queryParams.toString();
-    const endpoint = queryString
-      ? `${API_ENDPOINTS.CROPS.AVAILABLE}?${queryString}`
-      : API_ENDPOINTS.CROPS.AVAILABLE;
+      const queryString = queryParams.toString();
+      const endpoint = queryString
+        ? `${API_ENDPOINTS.CROPS.AVAILABLE}?${queryString}`
+        : API_ENDPOINTS.CROPS.AVAILABLE;
 
-    const response = await apiService.get(endpoint);
-    return response;
+      console.log('🌾 Loading available crops from:', endpoint);
+      const response = await apiService.get(endpoint);
+      console.log('🌾 Available crops response:', response);
+      return response;
+    } catch (error) {
+      console.error('❌ Error fetching available crops:', error);
+      throw error;
+    }
   }
 
   /**
@@ -170,6 +182,32 @@ class CropService {
    * Normalize crop data for display
    */
   normalizeCrop(crop) {
+    const normalizeStatus = (status) => {
+      if (!status) return 'available';
+      const statusStr = String(status).toLowerCase();
+      return statusStr;
+    };
+
+    // Handle farmer data - can be an ID string or a populated object
+    let farmerData = null;
+    if (crop.farmerId) {
+      if (typeof crop.farmerId === 'object' && crop.farmerId._id) {
+        // Populated object
+        farmerData = {
+          id: crop.farmerId._id,
+          name: crop.farmerId.name,
+          phone: crop.farmerId.phone,
+        };
+      } else if (typeof crop.farmerId === 'string') {
+        // Just an ID
+        farmerData = {
+          id: crop.farmerId,
+          name: 'Farmer',
+          phone: null,
+        };
+      }
+    }
+
     return {
       id: crop._id || crop.id,
       cropName: crop.cropName || crop.name || 'Unnamed Crop',
@@ -180,7 +218,7 @@ class CropService {
       pricePerUnit: crop.pricePerUnit || crop.price || 0,
       expectedPricePerUnit: crop.expectedPricePerUnit || crop.pricePerUnit || 0,
       quality: crop.quality || crop.qualityGrade || 'N/A',
-      status: crop.status || 'Available',
+      status: normalizeStatus(crop.status),
       availableQuantity: crop.availableQuantity || (crop.quantity - (crop.reservedQuantity || 0)),
       reservedQuantity: crop.reservedQuantity || 0,
       harvestDate: crop.harvestDate,
@@ -188,9 +226,10 @@ class CropService {
       cultivationDate: crop.cultivationDate,
       location: crop.location || '',
       locationDetails: crop.locationDetails || {},
-      cropImage: crop.cropImage || null,
+      // Handle both cropImage and images array from backend
+      cropImage: crop.cropImage || (crop.images && crop.images[0]) || null,
       images: crop.images || [],
-      farmer: crop.farmerId || null,
+      farmer: farmerData,
       createdAt: crop.createdAt,
       updatedAt: crop.updatedAt,
     };

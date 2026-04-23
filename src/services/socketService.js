@@ -4,7 +4,8 @@
  */
 
 import { io } from 'socket.io-client';
-import { SOCKET_URL, SOCKET_EVENTS } from '../config/constants';
+import { SOCKET_URL } from '../config/api';
+import { SOCKET_EVENTS } from '../config/constants';
 import storageService from './storageService';
 
 class SocketService {
@@ -39,26 +40,35 @@ class SocketService {
 
       this.setupDefaultListeners();
 
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
+        let settled = false;
+        const resolveOnce = () => {
+          if (!settled) {
+            settled = true;
+            resolve();
+          }
+        };
+
         const timeout = setTimeout(() => {
           console.warn('⚠️ Socket connection timeout - backend may not have Socket.IO configured');
           // Don't reject, just warn - the app should still work with HTTP APIs
-          resolve();
+          resolveOnce();
         }, 5000); // Reduced from 10000 to 5000
 
         this.socket.on(SOCKET_EVENTS.CONNECT, () => {
           clearTimeout(timeout);
           this.isConnected = true;
           console.log('✅ Socket connected:', this.socket.id);
-          resolve();
+          resolveOnce();
         });
 
         this.socket.on('connect_error', (error) => {
-          clearTimeout(timeout);
           console.warn('⚠️ Socket connection error:', error?.message || error);
           // Don't reject - the app should work without Socket.IO
-          // Just resolve after a timeout to continue the app flow
           this.isConnected = false;
+          // Resolve immediately so app flow never hangs on socket failure.
+          clearTimeout(timeout);
+          resolveOnce();
         });
       });
     } catch (error) {
@@ -238,7 +248,85 @@ class SocketService {
    */
   reconnect(token) {
     this.disconnect();
-    return this.connect(token);
+    return this.connect();
+  }
+
+  /**
+   * Subscribe to delivery location updates.
+   */
+  async subscribeToDeliveryTracking(deliveryId, onLocationUpdate, onStatusUpdate) {
+    if (!deliveryId) return;
+
+    if (!this.socket || !this.isConnected) {
+      await this.connect();
+    }
+
+    if (!this.socket || !this.isConnected) {
+      return;
+    }
+
+    try {
+      await this.emitWithAck('tracking:subscribe', { deliveryId });
+    } catch (error) {
+      console.warn('Tracking subscribe ack failed:', error?.message || error);
+    }
+
+    let locationHandler = null;
+    let statusHandler = null;
+
+    if (typeof onLocationUpdate === 'function') {
+      locationHandler = (payload) => {
+        if (payload?.deliveryId === deliveryId) {
+          onLocationUpdate(payload);
+        }
+      };
+      this.on(SOCKET_EVENTS.DELIVERY_LOCATION, locationHandler);
+    }
+
+    if (typeof onStatusUpdate === 'function') {
+      statusHandler = (payload) => {
+        if (payload?.orderId === deliveryId || payload?.deliveryId === deliveryId) {
+          onStatusUpdate(payload);
+        }
+      };
+      this.on(SOCKET_EVENTS.ORDER_STATUS_UPDATE, statusHandler);
+    }
+
+    return { locationHandler, statusHandler };
+  }
+
+  /**
+   * Unsubscribe from delivery location updates.
+   */
+  async unsubscribeFromDeliveryTracking(deliveryId, handlers = {}) {
+    if (!deliveryId || !this.socket) return;
+
+    try {
+      await this.emitWithAck('tracking:unsubscribe', { deliveryId });
+    } catch (error) {
+      console.warn('Tracking unsubscribe ack failed:', error?.message || error);
+    }
+
+    if (typeof handlers.locationHandler === 'function') {
+      this.off(SOCKET_EVENTS.DELIVERY_LOCATION, handlers.locationHandler);
+    }
+    if (typeof handlers.statusHandler === 'function') {
+      this.off(SOCKET_EVENTS.ORDER_STATUS_UPDATE, handlers.statusHandler);
+    }
+  }
+
+  /**
+   * Emit transport location update over socket.
+   */
+  async emitDeliveryLocation(deliveryId, location) {
+    if (!deliveryId || !location) {
+      throw new Error('deliveryId and location are required');
+    }
+
+    return this.emitWithAck('delivery:location:update', {
+      deliveryId,
+      location,
+    });
   }
 }
 

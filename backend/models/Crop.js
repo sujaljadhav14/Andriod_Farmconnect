@@ -95,7 +95,6 @@ const cropSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
-
 // Add indexes for better performance
 cropSchema.index({ farmerId: 1 });
 cropSchema.index({ category: 1 });

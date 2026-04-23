@@ -6,16 +6,17 @@ import { Colors } from '../constants/colors';
 
 // Import the new transport screens
 import {
-  TransportDashboard,
   TransportBooking,
   TrackingScreen,
   DriverDetails
 } from '../transport';
 
 // Keep existing screens for other tabs
+import TransportDashboardScreen from '../screens/transport/TransportDashboardScreen';
 import AvailableOrdersScreen from '../screens/transport/AvailableOrdersScreen';
 import MyDeliveriesScreen from '../screens/transport/MyDeliveriesScreen';
 import VehicleManagementScreen from '../screens/transport/VehicleManagementScreen';
+import DeliveryDetailScreen from '../screens/transport/DeliveryDetailScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -30,7 +31,7 @@ const DashboardStack = () => {
       }}>
       <Stack.Screen
         name="DashboardMain"
-        component={TransportDashboard}
+        component={TransportDashboardScreen}
         options={{ title: 'Transport Dashboard' }}
       />
       <Stack.Screen
@@ -42,6 +43,11 @@ const DashboardStack = () => {
         name="MyDeliveries"
         component={MyDeliveriesScreen}
         options={{ title: 'My Deliveries' }}
+      />
+      <Stack.Screen
+        name="DeliveryDetail"
+        component={DeliveryDetailScreen}
+        options={{ title: 'Delivery Details' }}
       />
       <Stack.Screen
         name="Vehicles"

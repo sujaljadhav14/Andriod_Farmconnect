@@ -27,6 +27,9 @@ import { formatCurrency } from '../../utils/formatters';
 const TraderDashboardScreen = ({ navigation }) => {
   const { t } = useLanguage();
   const { user, logout } = useAuth();
+  const handleLogout = async () => {
+  await logout();
+};
   const isFocused = useIsFocused();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -187,7 +190,7 @@ const TraderDashboardScreen = ({ navigation }) => {
             </Text>
           </View>
           <View style={styles.headerActions}>
-            <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
+           <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
               <MaterialIcons name="power-settings-new" size={24} color="#FFFFFF" />
             </TouchableOpacity>
           </View>

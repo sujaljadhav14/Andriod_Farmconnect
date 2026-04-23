@@ -44,6 +44,7 @@ const MyOrdersStack = () => {
       }}>
       <Stack.Screen name="MyOrdersList" component={MyOrdersScreen} options={{ title: 'My Orders' }} />
       <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={{ title: 'Order Details' }} />
+      <Stack.Screen name="Payments" component={PaymentsScreen} options={{ title: 'Payments' }} />
     </Stack.Navigator>
   );
 };

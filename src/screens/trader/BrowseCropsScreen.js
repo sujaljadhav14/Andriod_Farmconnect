@@ -23,7 +23,15 @@ import cropService from '../../services/cropService';
 import { LoadingSpinner, StatusBadge } from '../../components/common';
 import { formatCurrency } from '../../utils/formatters';
 import { CROP_CATEGORIES, QUALITY_GRADES } from '../../config/constants';
+const formatLocation = (location) => {
+  if (!location) return 'Location not available';
 
+  if (typeof location === 'object') {
+    return `${location.address || ''}, ${location.city || ''}, ${location.state || ''}`;
+  }
+
+  return location;
+};
 const getCategoryIcon = (category) => {
   switch (category) {
     case 'Grains':
@@ -70,11 +78,20 @@ const BrowseCropsScreen = ({ navigation }) => {
         maxPrice: filters.maxPrice || undefined,
       };
 
+      console.log('📦 Loading crops with filters:', apiFilters);
       const response = await cropService.getAvailableCrops(apiFilters);
-      const normalizedCrops = cropService.normalizeCrops(response.crops || response.data || []);
+      console.log('📦 Crops response:', response);
+      
+      // Handle both response.crops and response.data
+      const cropsData = response.crops || response.data || [];
+      console.log('📦 Crops array:', cropsData);
+      
+      const normalizedCrops = cropService.normalizeCrops(cropsData);
+      console.log('📦 Normalized crops:', normalizedCrops);
+      
       setCrops(normalizedCrops);
     } catch (err) {
-      console.error('Failed to load crops:', err);
+      console.error('❌ Failed to load crops:', err);
       setError(err.message || 'Failed to load crops');
       setCrops([]);
     } finally {
@@ -116,69 +133,77 @@ const BrowseCropsScreen = ({ navigation }) => {
   const hasActiveFilters = filters.category || filters.quality || filters.minPrice || filters.maxPrice;
 
   const renderCrop = ({ item }) => (
-    <TouchableOpacity
-      style={styles.cropCard}
-      activeOpacity={0.7}
-      onPress={() => navigation.navigate('CropDetail', { cropId: item.id, crop: item })}
-    >
-      {/* Crop Image */}
-      <View style={styles.imageContainer}>
-        {item.cropImage ? (
-          <Image source={{ uri: item.cropImage }} style={styles.cropImage} />
-        ) : (
-          <View style={styles.imagePlaceholder}>
-            <MaterialIcons name={getCategoryIcon(item.category)} size={32} color={Colors.textSecondary} />
-          </View>
-        )}
-        <StatusBadge status={item.status} size="small" style={styles.statusBadge} />
+  <TouchableOpacity
+    style={styles.cropCard}
+    activeOpacity={0.7}
+    onPress={() => navigation.navigate('CropDetail', { cropId: item.id, crop: item })}
+  >
+    {/* Image */}
+    <View style={styles.imageContainer}>
+      {item.cropImage ? (
+        <Image source={{ uri: item.cropImage }} style={styles.cropImage} />
+      ) : (
+        <View style={styles.imagePlaceholder}>
+          <MaterialIcons name={getCategoryIcon(item.category)} size={32} color={Colors.textSecondary} />
+        </View>
+      )}
+      <StatusBadge status={item.status} size="small" style={styles.statusBadge} />
+    </View>
+
+    {/* Content */}
+    <View style={styles.cropContent}>
+
+      {/* Header */}
+      <View style={styles.cropHeader}>
+        <View style={styles.cropTitleContainer}>
+          <Text style={styles.cropName} numberOfLines={1}>{item.cropName}</Text>
+          {item.variety && (
+            <Text style={styles.cropVariety} numberOfLines={1}>({item.variety})</Text>
+          )}
+        </View>
+        <Text style={styles.cropPrice}>
+          {formatCurrency(item.pricePerUnit)}/{item.unit}
+        </Text>
       </View>
 
-      {/* Crop Info */}
-      <View style={styles.cropContent}>
-        <View style={styles.cropHeader}>
-          <View style={styles.cropTitleContainer}>
-            <Text style={styles.cropName} numberOfLines={1}>{item.cropName}</Text>
-            {item.variety && (
-              <Text style={styles.cropVariety} numberOfLines={1}>({item.variety})</Text>
-            )}
-          </View>
-          <Text style={styles.cropPrice}>{formatCurrency(item.pricePerUnit)}/{item.unit}</Text>
+      {/* Farmer */}
+      {item.farmer && (
+        <View style={styles.farmerInfo}>
+          <MaterialIcons name="person" size={14} color={Colors.textSecondary} />
+          <Text style={styles.farmerName} numberOfLines={1}>
+            {item.farmer.name || 'Farmer'}
+          </Text>
         </View>
+      )}
 
-        {/* Farmer Info */}
-        {item.farmer && (
-          <View style={styles.farmerInfo}>
-            <MaterialIcons name="person" size={14} color={Colors.textSecondary} />
-            <Text style={styles.farmerName} numberOfLines={1}>
-              {item.farmer.name || 'Farmer'}
-            </Text>
-          </View>
-        )}
-
-        {/* Location */}
-        {(item.location || item.locationDetails?.district) && (
-          <View style={styles.locationInfo}>
-            <MaterialIcons name="location-on" size={14} color={Colors.textSecondary} />
-            <Text style={styles.locationText} numberOfLines={1}>
-              {item.locationDetails?.district || item.location}
-              {item.locationDetails?.state && `, ${item.locationDetails.state}`}
-            </Text>
-          </View>
-        )}
-
-        {/* Footer Details */}
-        <View style={styles.cropFooter}>
-          <View style={styles.tag}>
-            <Text style={styles.tagText}>{item.category}</Text>
-          </View>
-          <View style={styles.tag}>
-            <Text style={styles.tagText}>Grade {item.quality}</Text>
-          </View>
-          <Text style={styles.qty}>{item.availableQuantity || item.quantity} {item.unit}</Text>
-        </View>
+      {/* Location */}
+      <View style={styles.locationInfo}>
+        <MaterialIcons name="location-on" size={14} color={Colors.textSecondary} />
+        <Text style={styles.locationText} numberOfLines={1}>
+          {item.locationDetails?.district ||
+            (typeof item.location === 'object'
+              ? `${item.location?.city || ''}, ${item.location?.state || ''}`
+              : item.location || 'Location not available')}
+          {item.locationDetails?.state && `, ${item.locationDetails.state}`}
+        </Text>
       </View>
-    </TouchableOpacity>
-  );
+
+      {/* Footer */}
+      <View style={styles.cropFooter}>
+        <View style={styles.tag}>
+          <Text style={styles.tagText}>{item.category}</Text>
+        </View>
+        <View style={styles.tag}>
+          <Text style={styles.tagText}>Grade {item.quality}</Text>
+        </View>
+        <Text style={styles.qty}>
+          {item.availableQuantity || item.quantity} {item.unit}
+        </Text>
+      </View>
+
+    </View>
+  </TouchableOpacity>
+);
 
   const renderFilterModal = () => (
     <Modal

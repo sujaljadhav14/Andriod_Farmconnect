@@ -74,6 +74,18 @@ const orderSchema = new mongoose.Schema({
     },
     paidAt: Date,
   },
+  agreementId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Agreement',
+  },
+  agreementStatus: {
+    type: String,
+    enum: ['none', 'pending_farmer', 'pending_trader', 'completed', 'cancelled'],
+    default: 'none',
+  },
+  agreementGeneratedAt: {
+    type: Date,
+  },
   deliveryDetails: {
     address: String,
     city: String,
@@ -103,6 +115,25 @@ const orderSchema = new mongoose.Schema({
     pickupTime: Date,
     deliveryTime: Date,
     trackingId: String,
+    currentLocation: {
+      latitude: Number,
+      longitude: Number,
+      accuracy: Number,
+      heading: Number,
+      speed: Number,
+      timestamp: Date,
+    },
+    locationHistory: [{
+      latitude: Number,
+      longitude: Number,
+      accuracy: Number,
+      heading: Number,
+      speed: Number,
+      timestamp: {
+        type: Date,
+        default: Date.now,
+      },
+    }],
   },
   statusHistory: [{
     status: String,
@@ -131,17 +162,16 @@ const orderSchema = new mongoose.Schema({
   timestamps: true,
 });
 
-// Generate order number before saving
-orderSchema.pre('save', async function (next) {
+// Generate order number before saving (async doesn't need next callback)
+orderSchema.pre('save', async function () {
   if (this.isNew && !this.orderNumber) {
     const count = await this.constructor.countDocuments();
     this.orderNumber = `FC${Date.now().toString().slice(-6)}${(count + 1).toString().padStart(4, '0')}`;
   }
-  next();
 });
 
 // Add status to history on status change
-orderSchema.pre('save', function (next) {
+orderSchema.pre('save', async function () {
   if (this.isModified('status')) {
     this.statusHistory.push({
       status: this.status,
@@ -149,7 +179,6 @@ orderSchema.pre('save', function (next) {
       note: `Status changed to ${this.status}`,
     });
   }
-  next();
 });
 
 // Add indexes for better performance
