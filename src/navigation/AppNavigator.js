@@ -1,81 +1,50 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import AuthNavigator from './AuthNavigator';
-import RolePickerScreen from '../screens/RolePickerScreen';
+
 import FarmerNavigator from './FarmerNavigator';
 import TraderNavigator from './TraderNavigator';
 import TransportNavigator from './TransportNavigator';
 import AdminNavigator from './AdminNavigator';
-import { Colors } from '../constants/colors';
 
 const Stack = createNativeStackNavigator();
 
-const LoadingScreen = () => (
-  <View style={styles.loadingContainer}>
-    <ActivityIndicator size="large" color={Colors.primary} />
-  </View>
-);
-
 const AppNavigator = () => {
-  const { isAuthenticated, initializing, user } = useAuth();
+  const { user } = useAuth();
 
-  // Show loading screen while checking auth state
-  if (initializing) {
-    return <LoadingScreen />;
+  const role = user?.role?.toLowerCase();
+
+  // 🔥 RETURN BASED ON ROLE (NOT initialRoute)
+  if (role === 'trader') {
+    return (
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="TraderMain" component={TraderNavigator} />
+      </Stack.Navigator>
+    );
   }
 
-  // Determine initial route based on auth and user role
-  const getInitialRoute = () => {
-    if (!isAuthenticated) return 'Auth';
-    if (!user?.role) return 'RolePicker';
+  if (role === 'transport') {
+    return (
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="TransportMain" component={TransportNavigator} />
+      </Stack.Navigator>
+    );
+  }
 
-    switch (user.role) {
-      case 'farmer':
-        return 'FarmerMain';
-      case 'trader':
-        return 'TraderMain';
-      case 'transport':
-        return 'TransportMain';
-      case 'admin':
-        return 'AdminMain';
-      default:
-        return 'RolePicker';
-    }
-  };
+  if (role === 'admin') {
+    return (
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="AdminMain" component={AdminNavigator} />
+      </Stack.Navigator>
+    );
+  }
 
+  // default farmer
   return (
-    <Stack.Navigator
-      initialRouteName={getInitialRoute()}
-      screenOptions={{
-        headerShown: false,
-      }}
-    >
-      {!isAuthenticated ? (
-        // Auth screens
-        <Stack.Screen name="Auth" component={AuthNavigator} />
-      ) : (
-        // App screens
-        <>
-          <Stack.Screen name="RolePicker" component={RolePickerScreen} />
-          <Stack.Screen name="FarmerMain" component={FarmerNavigator} />
-          <Stack.Screen name="TraderMain" component={TraderNavigator} />
-          <Stack.Screen name="TransportMain" component={TransportNavigator} />
-          <Stack.Screen name="AdminMain" component={AdminNavigator} />
-        </>
-      )}
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="FarmerMain" component={FarmerNavigator} />
     </Stack.Navigator>
   );
 };
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
-  },
-});
 
 export default AppNavigator;

@@ -15,8 +15,14 @@ class AdminService {
   }
 
   async getStats() {
-    const response = await apiService.get(API_ENDPOINTS.ADMIN.STATS);
-    return response?.data || {};
+    try {
+      const response = await apiService.get(API_ENDPOINTS.ADMIN.STATS);
+      console.log('📊 Admin stats response:', response);
+      return response?.data || {};
+    } catch (error) {
+      console.error('❌ Failed to fetch admin stats:', error);
+      throw error;
+    }
   }
 
   async getUsers(filters = {}) {
@@ -45,6 +51,43 @@ class AdminService {
   async banUser(userId, reason = '') {
     const response = await apiService.put(API_ENDPOINTS.ADMIN.BAN_USER(userId), { reason });
     return response?.data || null;
+  }
+
+  // ✅ KYC Management Methods
+  async getAllKYC() {
+    try {
+      const response = await apiService.get(API_ENDPOINTS.ADMIN.ALL_KYC);
+      console.log('📋 KYC records:', response?.data);
+      return {
+        data: Array.isArray(response?.data) ? response.data : [],
+        total: response?.total || 0,
+      };
+    } catch (error) {
+      console.error('❌ Failed to fetch KYC records:', error);
+      throw error;
+    }
+  }
+
+  async approveKYC(kycId) {
+    try {
+      const response = await apiService.put(API_ENDPOINTS.ADMIN.KYC_APPROVE(kycId), {});
+      console.log('✅ KYC approved:', response?.data);
+      return response?.data || null;
+    } catch (error) {
+      console.error('❌ Failed to approve KYC:', error);
+      throw error;
+    }
+  }
+
+  async rejectKYC(kycId, reason = '') {
+    try {
+      const response = await apiService.put(API_ENDPOINTS.ADMIN.KYC_REJECT(kycId), { reason });
+      console.log('❌ KYC rejected:', response?.data);
+      return response?.data || null;
+    } catch (error) {
+      console.error('❌ Failed to reject KYC:', error);
+      throw error;
+    }
   }
 
   async getOrders(filters = {}) {

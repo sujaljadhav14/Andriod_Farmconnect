@@ -132,6 +132,7 @@ class APIService {
    * Main request method
    */
   async request(endpoint, options = {}) {
+    console.log("🌐 API CALL:", this.baseURL + endpoint);
     const url = `${this.baseURL}${endpoint}`;
     const headers = await this.getHeaders(options.isMultipart);
 

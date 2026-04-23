@@ -1,6 +1,5 @@
 /**
  * Authentication Context
- * Manages authentication state and provides auth-related functions
  */
 
 import React, { createContext, useState, useContext, useEffect } from 'react';
@@ -17,7 +16,6 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [initializing, setInitializing] = useState(true);
 
-  // Initialize auth state on app launch
   useEffect(() => {
     initializeAuth();
   }, []);
@@ -28,28 +26,30 @@ export const AuthProvider = ({ children }) => {
         storageService.getToken(),
         storageService.getUser(),
       ]);
-
+      console.log("INIT AUTH USER:", storedUser);
       if (storedToken && storedUser) {
-        setToken(storedToken);
-        setUser(storedUser);
-        setIsAuthenticated(true);
-
-        // Connect socket for authenticated user
-        try {
-          await socketService.connect();
-        } catch (error) {
-          console.error('Socket connection failed:', error);
-        }
-
-        // Refresh user profile in background
-        refreshUserProfile();
-      }
+  setToken(storedToken);
+  setUser(storedUser);
+  setIsAuthenticated(true); 
+}
     } catch (error) {
       console.error('Error initializing auth:', error);
     } finally {
       setInitializing(false);
       setLoading(false);
     }
+  };
+
+  // 🔥 Role-based screen helper
+  const getScreenByRole = (role) => {
+    const r = role?.toLowerCase();
+
+    if (r === 'farmer') return 'FarmerMain';
+    if (r === 'trader') return 'TraderMain';
+    if (r === 'transport') return 'TransportMain';
+    if (r === 'admin') return 'AdminMain';
+
+    return 'FarmerMain'; // fallback
   };
 
   const login = async (phone, password) => {
@@ -62,19 +62,21 @@ export const AuthProvider = ({ children }) => {
         setUser(response.user);
         setIsAuthenticated(true);
 
-        // Connect socket after login
         try {
           await socketService.connect();
-        } catch (error) {
-          console.error('Socket connection failed:', error);
+        } catch (err) {
+          console.error('Socket error:', err);
         }
 
-        return { success: true, user: response.user };
+        return {
+          success: true,
+          user: response.user,
+          dashboardScreen: getScreenByRole(response.user.role),
+        };
       }
 
       throw new Error(response.message || 'Login failed');
     } catch (error) {
-      console.error('Login error:', error);
       return { success: false, error: error.message };
     } finally {
       setLoading(false);
@@ -87,7 +89,6 @@ export const AuthProvider = ({ children }) => {
       const response = await authService.register(userData);
       return { success: true, message: response.message };
     } catch (error) {
-      console.error('Register error:', error);
       return { success: false, error: error.message };
     } finally {
       setLoading(false);
@@ -104,19 +105,21 @@ export const AuthProvider = ({ children }) => {
         setUser(response.user);
         setIsAuthenticated(true);
 
-        // Connect socket after login
         try {
           await socketService.connect();
-        } catch (error) {
-          console.error('Socket connection failed:', error);
+        } catch (err) {
+          console.error('Socket error:', err);
         }
 
-        return { success: true, user: response.user };
+        return {
+          success: true,
+          user: response.user,
+          dashboardScreen: getScreenByRole(response.user.role),
+        };
       }
 
-      throw new Error(response.message || 'OTP verification failed');
+      throw new Error('OTP failed');
     } catch (error) {
-      console.error('OTP login error:', error);
       return { success: false, error: error.message };
     } finally {
       setLoading(false);
@@ -126,10 +129,9 @@ export const AuthProvider = ({ children }) => {
   const sendOTP = async (phone) => {
     try {
       setLoading(true);
-      const response = await authService.sendOTP(phone);
-      return { success: true, message: response.message };
+      const res = await authService.sendOTP(phone);
+      return { success: true, message: res.message };
     } catch (error) {
-      console.error('Send OTP error:', error);
       return { success: false, error: error.message };
     } finally {
       setLoading(false);
@@ -137,39 +139,34 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    try {
-      setLoading(true);
+  try {
+    setLoading(true);
 
-      // Disconnect socket
-      socketService.disconnect();
+    socketService.disconnect();
 
-      // Clear storage
-      await authService.logout();
+    // ✅ CORRECT FUNCTIONS
+    await storageService.removeToken();
+    await storageService.removeUser();
 
-      // Clear state
-      setToken(null);
-      setUser(null);
-      setIsAuthenticated(false);
+    setUser(null);
+    setToken(null);
+    setIsAuthenticated(false);
 
-      return { success: true };
-    } catch (error) {
-      console.error('Logout error:', error);
-      return { success: false, error: error.message };
-    } finally {
-      setLoading(false);
-    }
-  };
+    console.log("LOGOUT SUCCESS");
+
+  } catch (error) {
+    console.error("Logout error:", error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const refreshUserProfile = async () => {
     try {
-      const response = await authService.getProfile();
-      if (response.user) {
-        setUser(response.user);
-      }
+      const res = await authService.getProfile();
+      if (res.user) setUser(res.user);
     } catch (error) {
-      console.error('Error refreshing profile:', error);
-      // If token is invalid, logout
-      if (error.message.includes('Session expired') || error.message.includes('Unauthorized')) {
+      if (error.message.includes('Unauthorized')) {
         await logout();
       }
     }
@@ -177,21 +174,16 @@ export const AuthProvider = ({ children }) => {
 
   const updateProfile = async (updates) => {
     try {
-      // Optimistically update UI
       setUser((prev) => ({ ...prev, ...updates }));
-
-      // Save to storage
       await storageService.saveUser({ ...user, ...updates });
-
       return { success: true };
     } catch (error) {
-      console.error('Update profile error:', error);
-      // Revert on error
-      refreshUserProfile();
+      await refreshUserProfile();
       return { success: false, error: error.message };
     }
   };
 
+  // ✅ THIS FIXES YOUR ERROR
   const value = {
     user,
     token,
@@ -205,17 +197,24 @@ export const AuthProvider = ({ children }) => {
     logout,
     refreshUserProfile,
     updateProfile,
+    getScreenByRole,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
+// Hook
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error('useAuth must be used within AuthProvider');
   }
   return context;
 };
 
-export default AuthContext;
+// ✅ ONLY ONE EXPORT
+export default AuthProvider;

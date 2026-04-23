@@ -42,14 +42,14 @@ const LoginScreen = ({ navigation }) => {
   };
 
   const handleLogin = async () => {
-    if (!validateForm()) return;
+  if (!validateForm()) return;
 
-    const result = await login(phone, password);
+  const result = await login(phone, password);
 
-    if (!result.success) {
-      setErrors({ general: result.error || 'Login failed. Please try again.' });
-    }
-  };
+  if (!result.success) {
+    setErrors({ general: result.error || 'Login failed. Please try again.' });
+  }
+};
 
   const handleOTPLogin = async () => {
     const phoneResult = validatePhone(phone);

@@ -2,6 +2,7 @@ const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 
 const express = require('express');
+const app = express();
 const mongoose = require('mongoose');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
@@ -9,6 +10,12 @@ const multer = require('multer');
 const fs = require('fs');
 const http = require('http');
 const { Server } = require('socket.io');
+
+// Import Routes (AFTER express is created but BEFORE they're used)
+const authRoutes = require('./routes/authRoutes');
+const proposalRoutes = require('./routes/proposalRoutes');
+const cropRoutes = require('./routes/cropRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 // Import Models
 const User = require('./models/User');
@@ -22,7 +29,6 @@ const Dispute = require('./models/Dispute');
 const CommunityPost = require('./models/CommunityPost');
 const Task = require('./models/Task');
 
-const app = express();
 const httpServer = http.createServer(app);
 const port = Number(process.env.PORT || 5050);
 const mongoUri = process.env.MONGO_URI;
@@ -35,9 +41,17 @@ const io = new Server(httpServer, {
   },
 });
 
-// Middleware
+// ✅ MIDDLEWARE - MUST BE FIRST
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+// ✅ THEN MOUNT ROUTES
+app.use('/api/auth', authRoutes);
+app.use('/api/proposals', proposalRoutes);
+app.use('/api/crops', cropRoutes);
+app.use('/api/admin', adminRoutes);
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Create uploads directory if it doesn't exist
@@ -1028,12 +1042,14 @@ app.get('/api/auth/get-all-kyc', authenticateToken, async (req, res) => {
     res.json({
       success: true,
       data: users.map((candidate) => ({
+        _id: candidate._id,
         id: candidate._id,
         name: candidate.name,
         phone: candidate.phone,
         role: candidate.role,
         kycStatus: normalizeKycStatus(candidate.kycStatus),
         kycDetails: candidate.kycDetails || {},
+        createdAt: candidate.createdAt,
         updatedAt: candidate.updatedAt,
       })),
       total: users.length,
@@ -1822,49 +1838,34 @@ app.get('/api/analytics/farmer-network', authenticateToken, async (req, res) => 
 
 // ============ CROP ROUTES ============
 
-// Get all available crops (for traders)
+/// ============ CROP ROUTES ============
+
+// ✅ 1. AVAILABLE CROPS (FIRST)
+// ============ CROP ROUTES ============
+
+// ✅ 1. AVAILABLE CROPS (FIXED)
 app.get('/api/crops/available', async (req, res) => {
   try {
-    const { category, minPrice, maxPrice, qualityGrade } = req.query;
-
-    // Build filter
-    const filter = { status: 'available' };
-
-    if (category && category !== 'all') {
-      filter.category = category;
-    }
-
-    if (minPrice || maxPrice) {
-      filter.price = {};
-      if (minPrice) filter.price.$gte = Number(minPrice);
-      if (maxPrice) filter.price.$lte = Number(maxPrice);
-    }
-
-    if (qualityGrade && qualityGrade !== 'all') {
-      filter.qualityGrade = qualityGrade;
-    }
-
-    const crops = await Crop.find(filter)
+    const crops = await Crop.find({ status: 'available' })
       .populate('farmerId', 'name phone location')
-      .sort({ createdAt: -1 })
-      .limit(100);
+      .sort({ createdAt: -1 });
 
     res.json({
       success: true,
       data: crops,
-      total: crops.length,
     });
   } catch (error) {
     console.error('Get crops error:', error);
-    res.status(500).json({ message: 'Failed to fetch crops', error: error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Get farmer's crops
+
+// ✅ 2. MY CROPS
 app.get('/api/crops/my-crops', authenticateToken, async (req, res) => {
   try {
     if (req.user.role !== 'farmer') {
-      return res.status(403).json({ message: 'Only farmers can access this endpoint' });
+      return res.status(403).json({ message: 'Only farmers allowed' });
     }
 
     const crops = await Crop.find({ farmerId: req.user._id })
@@ -1876,10 +1877,30 @@ app.get('/api/crops/my-crops', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Get farmer crops error:', error);
-    res.status(500).json({ message: 'Failed to fetch crops', error: error.message });
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
+
+// ❗ 3. SINGLE CROP (KEEP LAST)
+app.get('/api/crops/:id', async (req, res) => {
+  try {
+    const crop = await Crop.findById(req.params.id)
+      .populate('farmerId', 'name phone location');
+
+    if (!crop) {
+      return res.status(404).json({ message: 'Crop not found' });
+    }
+
+    res.json({
+      success: true,
+      data: crop,
+    });
+  } catch (error) {
+    console.error('Get crop error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 // Add new crop (farmers only)
 app.post('/api/crops/add', authenticateToken, upload.array('images', 5), async (req, res) => {
   try {
@@ -2169,31 +2190,38 @@ app.patch('/api/proposals/:id/accept', authenticateToken, async (req, res) => {
     // Update crop status to reserved
     await Crop.findByIdAndUpdate(proposal.cropId._id, { status: 'reserved' });
 
-    // Create order
+    // Create order with orderNumber
+    const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    
+    // Handle delivery location - provide defaults if not available
+    const deliveryLocation = proposal.deliveryLocation || {};
+    const contactInfo = proposal.traderId || {};
+    
     const order = new Order({
+      orderNumber,
       proposalId: proposal._id,
       farmerId: proposal.farmerId,
-      traderId: proposal.traderId,
+      traderId: proposal.traderId._id || proposal.traderId,
       cropId: proposal.cropId._id,
       quantity: proposal.quantity,
-      unit: proposal.cropId.unit,
+      unit: proposal.cropId.unit || 'kg',
       pricePerUnit: proposal.priceOffered,
       totalAmount: proposal.totalAmount,
       paymentStatus: proposal.advanceAmount > 0 ? 'partial' : 'pending',
       deliveryDetails: {
-        address: proposal.deliveryLocation.address,
-        city: proposal.deliveryLocation.city,
-        state: proposal.deliveryLocation.state,
-        pincode: proposal.deliveryLocation.pincode,
+        address: deliveryLocation.address || 'To be confirmed',
+        city: deliveryLocation.city || '',
+        state: deliveryLocation.state || '',
+        pincode: deliveryLocation.pincode || '',
         scheduledDate: proposal.proposedDeliveryDate,
-        contactPerson: proposal.traderId.name,
-        contactPhone: proposal.traderId.phone,
+        contactPerson: contactInfo.name || 'Buyer',
+        contactPhone: contactInfo.phone || '',
       },
       farmingDetails: {
         harvestDate: proposal.cropId.harvestDate,
-        qualityGrade: proposal.cropId.qualityGrade,
-        pesticidesUsed: proposal.cropId.pesticidesUsed,
-        organic: proposal.cropId.organic,
+        qualityGrade: proposal.cropId.qualityGrade || 'N/A',
+        pesticidesUsed: proposal.cropId.pesticidesUsed || false,
+        organic: proposal.cropId.organic || false,
       },
     });
 
@@ -4635,7 +4663,7 @@ app.use((err, req, res, next) => {
 });
 
 // 404 handler
-app.use((req, res) => {
+((req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
@@ -4663,15 +4691,12 @@ const start = async () => {
       }
     }
 
-    httpServer.listen(port, '0.0.0.0', () => {
-      console.log(`🚀 FarmConnect Mobile Backend running on http://localhost:${port}`);
-      console.log(`📱 Health check: http://localhost:${port}/health`);
-      console.log(`📡 Socket.IO ready at ws://localhost:${port}`);
-      console.log(`🌾 Ready for your mobile app!`);
-    });
+    httpServer.listen(5001, '0.0.0.0', () => {
+  console.log('Server running on port 5001');
+});
   } catch (error) {
     console.error('❌ Failed to start server:', error);
-    process.exit(1);
+    app.useprocess.exit(1);
   }
 };
 

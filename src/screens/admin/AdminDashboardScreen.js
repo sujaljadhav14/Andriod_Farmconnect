@@ -6,8 +6,11 @@ import {
   ScrollView,
   RefreshControl,
 } from 'react-native';
+
+import { useAuth } from '../../context/AuthContext';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
+
 import { Colors } from '../../constants/colors';
 import adminService from '../../services/adminService';
 import { LoadingSpinner } from '../../components/common';
@@ -34,8 +37,11 @@ const StatBox = ({ label, value, icon }) => (
 );
 
 const AdminDashboardScreen = () => {
-  const isFocused = useIsFocused();
-
+  const { logout, user } = useAuth();
+const isFocused = useIsFocused();
+  const handleLogout = async () => {
+  await logout();
+};
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -56,6 +62,8 @@ const AdminDashboardScreen = () => {
 
     try {
       const response = await adminService.getStats();
+      console.log('✅ Stats loaded:', response);
+      
       setStats({
         totals: response?.totals || {},
         usersByRole: response?.usersByRole || [],
@@ -67,10 +75,10 @@ const AdminDashboardScreen = () => {
         last7Days: response?.last7Days || {},
       });
     } catch (statsError) {
-      console.error('Admin dashboard load error:', statsError);
+      console.error('❌ Admin dashboard load error:', statsError);
       setError(statsError.message || 'Failed to load admin dashboard');
       setStats({
-        totals: {},
+        totals: { users: 0, crops: 0, proposals: 0, orders: 0, agreements: 0, disputes: 0 },
         usersByRole: [],
         usersByAccountStatus: [],
         ordersByStatus: [],
@@ -111,11 +119,25 @@ const AdminDashboardScreen = () => {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[ADMIN_COLOR]} />}
     >
       <View style={styles.headerCard}>
-        <Text style={styles.headerTitle}>Admin Control Center</Text>
-        <Text style={styles.headerText}>
-          Platform health, moderation snapshot, and operational insights.
-        </Text>
-      </View>
+  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+    
+    <View>
+      <Text style={styles.headerTitle}>Admin Control Center</Text>
+      <Text style={styles.headerText}>
+        Platform health, moderation snapshot, and operational insights.
+      </Text>
+    </View>
+
+    {/* 🔥 LOGOUT BUTTON */}
+    <MaterialIcons 
+      name="power-settings-new" 
+      size={24} 
+      color="#fff" 
+      onPress={handleLogout}
+    />
+
+  </View>
+</View>
 
       <View style={styles.statsGrid}>
         <StatBox label="Users" value={stats.totals.users || 0} icon="groups" />

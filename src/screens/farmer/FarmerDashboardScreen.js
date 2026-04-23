@@ -29,6 +29,9 @@ import { formatCurrency } from '../../utils/formatters';
 const FarmerDashboardScreen = ({ navigation }) => {
   const { t } = useLanguage();
   const { user, logout } = useAuth();
+  const handleLogout = async () => {
+    await logout();
+  };
   const isFocused = useIsFocused();
   const [stats, setStats] = useState({
     totalCrops: 0,
@@ -48,7 +51,7 @@ const FarmerDashboardScreen = ({ navigation }) => {
     try {
       // Fetch data in parallel
       const [cropsRes, proposalsRes, ordersRes] = await Promise.allSettled([
-        cropService.getMyCrops().catch(() => ({ crops: [] })),
+        cropService.getMyCrops(user?._id || user?.id).catch(() => ({ crops: [] })),
         proposalService.getFarmerProposals().catch(() => ({ proposals: [] })),
         apiService.get(API_ENDPOINTS.ORDERS.FARMER_ORDERS).catch(() => ({ orders: [] })),
       ]);
@@ -58,7 +61,7 @@ const FarmerDashboardScreen = ({ navigation }) => {
         ? (cropsRes.value.crops || cropsRes.value.data || [])
         : [];
       const totalCrops = crops.length;
-      const activeCrops = crops.filter(c => c.status === 'Available').length;
+      const activeCrops = crops.filter(c => c.status === 'available').length;
 
       // Process proposals
       const proposals = proposalsRes.status === 'fulfilled' && proposalsRes.value
@@ -98,7 +101,7 @@ const FarmerDashboardScreen = ({ navigation }) => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (isFocused) {
@@ -237,7 +240,7 @@ const FarmerDashboardScreen = ({ navigation }) => {
           <TouchableOpacity onPress={() => navigation.navigate('Notifications')} style={styles.headerIcon}>
             <MaterialIcons name="notifications-none" size={26} color="#FFFFFF" />
           </TouchableOpacity>
-          <TouchableOpacity onPress={logout} style={styles.headerIcon}>
+          <TouchableOpacity onPress={handleLogout} style={styles.headerIcon}>
             <MaterialIcons name="power-settings-new" size={26} color="#FFFFFF" />
           </TouchableOpacity>
         </View>

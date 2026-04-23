@@ -11,6 +11,7 @@ import {
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
+import { useAuth } from '../../context/AuthContext';
 import cropService from '../../services/cropService';
 import { LoadingSpinner, StatusBadge } from '../../components/common';
 import { formatCurrency } from '../../utils/formatters';
@@ -34,6 +35,7 @@ const getCategoryIcon = (category) => {
 
 const MyCropsScreen = ({ navigation }) => {
   const isFocused = useIsFocused();
+  const { user } = useAuth();
   const [crops, setCrops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -44,7 +46,8 @@ const MyCropsScreen = ({ navigation }) => {
     setError(null);
 
     try {
-      const response = await cropService.getMyCrops();
+      // Pass user ID to get their crops
+      const response = await cropService.getMyCrops(user?._id || user?.id);
       const normalizedCrops = cropService.normalizeCrops(response.crops || response.data || []);
       setCrops(normalizedCrops);
     } catch (err) {
@@ -55,7 +58,7 @@ const MyCropsScreen = ({ navigation }) => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (isFocused) {

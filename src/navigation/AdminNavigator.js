@@ -9,6 +9,7 @@ import AdminUserDetailScreen from '../screens/admin/AdminUserDetailScreen';
 import AdminOversightScreen from '../screens/admin/AdminOversightScreen';
 import AdminDisputesScreen from '../screens/admin/AdminDisputesScreen';
 import AdminPaymentsAgreementsScreen from '../screens/admin/AdminPaymentsAgreementsScreen';
+import AdminKYCScreen from '../screens/admin/AdminKYCScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -74,6 +75,16 @@ const AdminDisputesStack = () => (
     </Stack.Navigator>
 );
 
+const AdminKYCStack = () => (
+    <Stack.Navigator screenOptions={stackOptions}>
+        <Stack.Screen
+            name="AdminKYCMain"
+            component={AdminKYCScreen}
+            options={{ title: 'KYC Verification' }}
+        />
+    </Stack.Navigator>
+);
+
 const AdminNavigator = () => (
     <Tab.Navigator
         screenOptions={{
@@ -132,6 +143,15 @@ const AdminNavigator = () => (
             options={{
                 tabBarLabel: 'Disputes',
                 tabBarIcon: ({ color, size }) => <MaterialIcons name="report-problem" size={size} color={color} />,
+            }}
+        />
+
+        <Tab.Screen
+            name="AdminKYC"
+            component={AdminKYCStack}
+            options={{
+                tabBarLabel: 'KYC',
+                tabBarIcon: ({ color, size }) => <MaterialIcons name="assignment-ind" size={size} color={color} />,
             }}
         />
     </Tab.Navigator>

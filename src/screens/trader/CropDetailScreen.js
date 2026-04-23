@@ -217,7 +217,7 @@ const CropDetailScreen = ({ route, navigation }) => {
         </View>
 
         {/* Farmer Information */}
-        {crop.farmer && (
+        {crop.farmer && crop.farmer.name && (
           <View style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>Farmer Details</Text>
             <View style={styles.farmerInfo}>
@@ -327,7 +327,7 @@ const CropDetailScreen = ({ route, navigation }) => {
         </View>
 
         {/* Action Buttons */}
-        {crop.status === 'Available' && (
+        {crop.status === 'available' && (
           <View style={styles.actionContainer}>
             <TouchableOpacity style={styles.proposalButton} onPress={handleMakeProposal}>
               <MaterialIcons name="send" size={20} color="#FFFFFF" />
@@ -336,11 +336,11 @@ const CropDetailScreen = ({ route, navigation }) => {
           </View>
         )}
 
-        {crop.status !== 'Available' && (
+        {crop.status && crop.status !== 'available' && (
           <View style={styles.unavailableNotice}>
             <MaterialIcons name="info-outline" size={20} color={Colors.textSecondary} />
             <Text style={styles.unavailableText}>
-              This crop is currently {crop.status.toLowerCase()} and not available for proposals.
+              This crop is currently {crop.status} and not available for proposals.
             </Text>
           </View>
         )}

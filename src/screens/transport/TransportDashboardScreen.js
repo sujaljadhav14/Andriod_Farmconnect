@@ -19,7 +19,9 @@ import { formatCurrency, formatDate } from '../../utils/formatters';
 const TransportDashboardScreen = ({ navigation }) => {
   const isFocused = useIsFocused();
   const { user, logout } = useAuth();
-
+  const handleLogout = async () => {
+  await logout();
+};
   const [stats, setStats] = useState([
     { key: 'active', label: 'Active Deliveries', value: '0', icon: 'local-shipping', color: '#1565C0' },
     { key: 'completed', label: 'Completed', value: '0', icon: 'check-circle', color: '#2E7D32' },
@@ -125,7 +127,7 @@ const TransportDashboardScreen = ({ navigation }) => {
           <Text style={styles.nameText}>{user?.name || 'Transporter'}</Text>
           <Text style={styles.roleText}>Transport</Text>
         </View>
-        <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
+        <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
           <MaterialIcons name="power-settings-new" size={24} color="#FFFFFF" />
         </TouchableOpacity>
       </View>

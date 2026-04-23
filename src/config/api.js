@@ -12,160 +12,159 @@
 // For iOS simulator:    use http://localhost:5050
 // For physical device:  use your PC's LAN IP (e.g. 192.168.x.x)
 
-export const API_BASE_URL = 'http://192.168.0.103:5050'; // <-- UPDATE THIS IP
-
+export const API_BASE_URL = "https://kina-hypersubtle-irremeably.ngrok-free.dev/api";;
 // Socket.IO URL (same as API base)
-export const SOCKET_URL = 'http://192.168.0.103:5050'; // <-- UPDATE THIS IP
+export const SOCKET_URL = 'http://192.168.1.100:5001'; // <-- UPDATE THIS IP
 
 // API Endpoints
 export const API_ENDPOINTS = {
   // Authentication
   AUTH: {
-    REGISTER: '/api/auth/register',
-    LOGIN: '/api/auth/login',
-    SEND_OTP: '/api/auth/send-otp',
-    VERIFY_OTP: '/api/auth/verify-otp',
-    PROFILE: '/api/auth/me', // Backend route is /me, not /profile
-    UPDATE_BANK: '/api/auth/update-bank-details',
-    SUBMIT_KYC: '/api/auth/submit-kyc',
-    MY_KYC: '/api/auth/my-kyc',
+    REGISTER: '/auth/register',
+    LOGIN: '/auth/login',
+    SEND_OTP: '/auth/send-otp',
+    VERIFY_OTP: '/auth/verify-otp',
+    PROFILE: '/auth/me',
+    UPDATE_BANK: '/auth/update-bank-details',
+    SUBMIT_KYC: '/auth/submit-kyc',
+    MY_KYC: '/auth/my-kyc',
   },
 
   // Crops
   CROPS: {
-    MY_CROPS: '/api/crops/my-crops',
-    AVAILABLE: '/api/crops/available',
-    ADD: '/api/crops/add',
-    UPDATE: (cropId) => `/api/crops/update/${cropId}`,
-    DELETE: (cropId) => `/api/crops/delete/${cropId}`,
-    DETAILS: (cropId) => `/api/crops/details/${cropId}`,
-    STATUS: (cropId) => `/api/crops/status/${cropId}`,
+    MY_CROPS: '/crops/my-crops',
+    AVAILABLE: '/crops/available',
+    ADD: '/crops/add',
+    UPDATE: (cropId) => `/crops/update/${cropId}`,
+    DELETE: (cropId) => `/crops/delete/${cropId}`,
+    DETAILS: (cropId) => `/crops/${cropId}`,
+    STATUS: (cropId) => `/crops/status/${cropId}`,
   },
 
   // Proposals
   PROPOSALS: {
-    CREATE: '/api/proposals',
-    TRADER: '/api/proposals/trader',
-    FARMER: '/api/proposals/farmer',
-    FOR_CROP: (cropId) => `/api/proposals/crop/${cropId}`,
-    ACCEPT: (proposalId) => `/api/proposals/${proposalId}/accept`,
-    REJECT: (proposalId) => `/api/proposals/${proposalId}/reject`,
-    WITHDRAW: (proposalId) => `/api/proposals/${proposalId}/withdraw`,
-    STATS: '/api/proposals/stats',
+    CREATE: '/proposals',
+    TRADER: '/proposals/trader',
+    FARMER: '/proposals/farmer',
+    FOR_CROP: (cropId) => `/proposals/crop/${cropId}`,
+    ACCEPT: (proposalId) => `/proposals/${proposalId}/accept`,
+    REJECT: (proposalId) => `/proposals/${proposalId}/reject`,
+    WITHDRAW: (proposalId) => `/proposals/${proposalId}/withdraw`,
+    STATS: '/proposals/stats',
   },
 
   // Orders
   ORDERS: {
-    CREATE: '/api/orders/create',
-    FARMER_ORDERS: '/api/orders/farmer/my-orders',
-    TRADER_ORDERS: '/api/orders/trader/my-orders',
-    DETAILS: (orderId) => `/api/orders/${orderId}`,
-    ACCEPT: (orderId) => `/api/orders/accept/${orderId}`,
-    REJECT: (orderId) => `/api/orders/reject/${orderId}`,
-    READY: (orderId) => `/api/orders/ready/${orderId}`,
-    CANCEL: (orderId) => `/api/orders/cancel/${orderId}`,
+    CREATE: '/orders/create',
+    FARMER_ORDERS: '/orders/farmer/my-orders',
+    TRADER_ORDERS: '/orders/trader/my-orders',
+    DETAILS: (orderId) => `/orders/${orderId}`,
+    ACCEPT: (orderId) => `/orders/accept/${orderId}`,
+    REJECT: (orderId) => `/orders/reject/${orderId}`,
+    READY: (orderId) => `/orders/ready/${orderId}`,
+    CANCEL: (orderId) => `/orders/cancel/${orderId}`,
   },
 
   // Agreements
   AGREEMENTS: {
-    LIST: '/api/agreements',
-    STATS: '/api/agreements/stats',
-    GET: (orderId) => `/api/agreements/${orderId}`,
-    EXPORT: (orderId) => `/api/agreements/${orderId}/export`,
-    FARMER_SIGN: (orderId) => `/api/agreements/farmer-sign/${orderId}`,
-    TRADER_SIGN: (orderId) => `/api/agreements/trader-sign/${orderId}`,
-    CANCEL: (orderId) => `/api/agreements/cancel/${orderId}`,
+    LIST: '/agreements',
+    STATS: '/agreements/stats',
+    GET: (orderId) => `/agreements/${orderId}`,
+    EXPORT: (orderId) => `/agreements/${orderId}/export`,
+    FARMER_SIGN: (orderId) => `/agreements/farmer-sign/${orderId}`,
+    TRADER_SIGN: (orderId) => `/agreements/trader-sign/${orderId}`,
+    CANCEL: (orderId) => `/agreements/cancel/${orderId}`,
   },
 
   // Transport
   TRANSPORT: {
-    AVAILABLE: '/api/transport/available',
-    ACCEPT: (orderId) => `/api/transport/accept/${orderId}`,
-    MY_DELIVERIES: '/api/transport/my-deliveries',
-    HISTORY: '/api/transport/history',
-    STATUS: (deliveryId) => `/api/transport/status/${deliveryId}`,
-    DETAILS: (deliveryId) => `/api/transport/details/${deliveryId}`,
-    LOCATION_UPDATE: (deliveryId) => `/api/transport/location/${deliveryId}`,
-    LOCATION: (deliveryId) => `/api/transport/location/${deliveryId}`,
+    AVAILABLE: '/transport/available',
+    ACCEPT: (orderId) => `/transport/accept/${orderId}`,
+    MY_DELIVERIES: '/transport/my-deliveries',
+    HISTORY: '/transport/history',
+    STATUS: (deliveryId) => `/transport/status/${deliveryId}`,
+    DETAILS: (deliveryId) => `/transport/details/${deliveryId}`,
+    LOCATION_UPDATE: (deliveryId) => `/transport/location/${deliveryId}`,
+    LOCATION: (deliveryId) => `/transport/location/${deliveryId}`,
   },
 
   // Vehicles
   VEHICLES: {
-    MY_VEHICLES: '/api/vehicles/my-vehicles',
-    ADD: '/api/vehicles/add',
-    UPDATE: (vehicleId) => `/api/vehicles/${vehicleId}/update`,
-    DELETE: (vehicleId) => `/api/vehicles/${vehicleId}/delete`,
-    AVAILABILITY: (vehicleId) => `/api/vehicles/${vehicleId}/availability`,
-    AVAILABLE_ORDERS: '/api/vehicles/orders/available',
-    SUGGEST: (orderId) => `/api/vehicles/suggest/${orderId}`,
+    MY_VEHICLES: '/vehicles/my-vehicles',
+    ADD: '/vehicles/add',
+    UPDATE: (vehicleId) => `/vehicles/${vehicleId}/update`,
+    DELETE: (vehicleId) => `/vehicles/${vehicleId}/delete`,
+    AVAILABILITY: (vehicleId) => `/vehicles/${vehicleId}/availability`,
+    AVAILABLE_ORDERS: '/vehicles/orders/available',
+    SUGGEST: (orderId) => `/vehicles/suggest/${orderId}`,
   },
 
   // Transactions/Payments
   TRANSACTIONS: {
-    CREATE: '/api/transactions',
-    MY_TRANSACTIONS: '/api/transactions',
-    STATS: '/api/transactions/stats',
-    DETAILS: (transactionId) => `/api/transactions/${transactionId}`,
-    BY_REFERENCE: (referenceNumber) => `/api/transactions/reference/${referenceNumber}`,
+    CREATE: '/transactions',
+    MY_TRANSACTIONS: '/transactions',
+    STATS: '/transactions/stats',
+    DETAILS: (transactionId) => `/transactions/${transactionId}`,
+    BY_REFERENCE: (referenceNumber) => `/transactions/reference/${referenceNumber}`,
   },
 
   // Disputes
   DISPUTES: {
-    CREATE: '/api/disputes',
-    MY_DISPUTES: '/api/disputes/my',
-    ADD_EVIDENCE: (disputeId) => `/api/disputes/${disputeId}/evidence`,
+    CREATE: '/disputes',
+    MY_DISPUTES: '/disputes/my',
+    ADD_EVIDENCE: (disputeId) => `/disputes/${disputeId}/evidence`,
   },
 
   // Weather
   WEATHER: {
-    GET_WEATHER: '/api/weather/get-weather',
-    MY_LOCATIONS: '/api/weather/my-locations',
-    LOCATION: (weatherId) => `/api/weather/location/${weatherId}`,
-    FAVORITE: (weatherId) => `/api/weather/favorite/${weatherId}`,
-    ALERTS: '/api/weather/alerts/all',
+    GET_WEATHER: '/weather/get-weather',
+    MY_LOCATIONS: '/weather/my-locations',
+    LOCATION: (weatherId) => `/weather/location/${weatherId}`,
+    FAVORITE: (weatherId) => `/weather/favorite/${weatherId}`,
+    ALERTS: '/weather/alerts/all',
   },
 
   // Community
   COMMUNITY: {
-    POSTS: '/api/community/posts',
-    CREATE_POST: '/api/community/posts',
-    LIKE: (postId) => `/api/community/posts/${postId}/like`,
-    COMMENT: (postId) => `/api/community/posts/${postId}/comment`,
+    POSTS: '/community/posts',
+    CREATE_POST: '/community/posts',
+    LIKE: (postId) => `/community/posts/${postId}/like`,
+    COMMENT: (postId) => `/community/posts/${postId}/comment`,
   },
 
   // Tasks
   TASKS: {
-    CREATE: '/api/tasks/create',
-    MY_TASKS: '/api/tasks/my-tasks',
-    UPDATE: (taskId) => `/api/tasks/update/${taskId}`,
-    DELETE: (taskId) => `/api/tasks/delete/${taskId}`,
+    CREATE: '/tasks/create',
+    MY_TASKS: '/tasks/my-tasks',
+    UPDATE: (taskId) => `/tasks/update/${taskId}`,
+    DELETE: (taskId) => `/tasks/delete/${taskId}`,
   },
 
   // Analytics
   ANALYTICS: {
-    PRICE_TREND: '/api/analytics/price-trend',
-    TOP_CROPS: '/api/analytics/top-crops',
-    FARMER_NETWORK: '/api/analytics/farmer-network',
+    PRICE_TREND: '/analytics/price-trend',
+    TOP_CROPS: '/analytics/top-crops',
+    FARMER_NETWORK: '/analytics/farmer-network',
   },
 
   // Admin
   ADMIN: {
-    STATS: '/api/admin/stats',
-    USERS: '/api/admin/users',
-    USER_DETAILS: (userId) => `/api/admin/users/${userId}`,
-    SUSPEND_USER: (userId) => `/api/admin/users/${userId}/suspend`,
-    ACTIVATE_USER: (userId) => `/api/admin/users/${userId}/activate`,
-    BAN_USER: (userId) => `/api/admin/users/${userId}/ban`,
-    ALL_KYC: '/api/auth/get-all-kyc',
-    KYC_APPROVE: (kycId) => `/api/auth/kyc-approve/${kycId}`,
-    KYC_REJECT: (kycId) => `/api/auth/kyc-reject/${kycId}`,
-    ALL_ORDERS: '/api/admin/orders',
-    ALL_CROPS: '/api/admin/crops',
-    ALL_PROPOSALS: '/api/admin/proposals',
-    ALL_DELIVERIES: '/api/admin/deliveries',
-    DISPUTES: '/api/admin/disputes',
-    UPDATE_DISPUTE_STATUS: (disputeId) => `/api/admin/disputes/${disputeId}/status`,
-    SETTINGS: '/api/admin/settings',
+    STATS: '/admin/stats',
+    USERS: '/admin/users',
+    USER_DETAILS: (userId) => `/admin/users/${userId}`,
+    SUSPEND_USER: (userId) => `/admin/users/${userId}/suspend`,
+    ACTIVATE_USER: (userId) => `/admin/users/${userId}/activate`,
+    BAN_USER: (userId) => `/admin/users/${userId}/ban`,
+    ALL_KYC: '/auth/get-all-kyc',
+    KYC_APPROVE: (kycId) => `/auth/kyc-approve/${kycId}`,
+    KYC_REJECT: (kycId) => `/auth/kyc-reject/${kycId}`,
+    ALL_ORDERS: '/admin/orders',
+    ALL_CROPS: '/admin/crops',
+    ALL_PROPOSALS: '/admin/proposals',
+    ALL_DELIVERIES: '/admin/deliveries',
+    DISPUTES: '/admin/disputes',
+    UPDATE_DISPUTE_STATUS: (disputeId) => `/admin/disputes/${disputeId}/status`,
+    SETTINGS: '/admin/settings',
   },
 };
 

@@ -12,10 +12,34 @@ class ProposalService {
    * Create a new proposal for a crop
    */
   async createProposal(cropId, proposalData) {
-    const response = await apiService.post(API_ENDPOINTS.PROPOSALS.CREATE, {
+    // Calculate total amount
+    const quantity = parseFloat(proposalData.proposedQuantity || proposalData.quantity || 0);
+    const price = parseFloat(proposalData.proposedPrice || proposalData.price || 0);
+    const totalAmount = quantity * price;
+
+    // Map delivery address to location object
+    const deliveryLocation = {
+      address: proposalData.deliveryAddress || '',
+      city: proposalData.city || '',
+      state: proposalData.state || '',
+      pincode: proposalData.pincode || '',
+    };
+
+    // Calculate proposed delivery date (7 days from today)
+    const proposedDeliveryDate = proposalData.proposedDeliveryDate 
+      ? new Date(proposalData.proposedDeliveryDate)
+      : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    // Map frontend field names to backend field names
+    const backendData = {
       cropId,
-      ...proposalData,
-    });
+      quantity,
+      price,
+    };
+    
+    console.log('📦 Creating proposal with data:', backendData);
+    
+    const response = await apiService.post(API_ENDPOINTS.PROPOSALS.CREATE, backendData);
     return response;
   }
 
