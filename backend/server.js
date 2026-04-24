@@ -223,6 +223,24 @@ const getWeatherMetaFromCode = (weatherCode, isDay = true) => {
   return { condition: 'Weather Update', icon: 'wb-sunny' };
 };
 
+const resolveLocationNameFromCoordinates = async ({ latitude, longitude }) => {
+  const reverseGeocodeUrl = `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&count=1&language=en&format=json`;
+  const reverseGeocodeResponse = await fetch(reverseGeocodeUrl);
+
+  if (!reverseGeocodeResponse.ok) {
+    return '';
+  }
+
+  const reverseGeocodeData = await reverseGeocodeResponse.json();
+  const topLocation = reverseGeocodeData?.results?.[0];
+
+  if (!topLocation) {
+    return '';
+  }
+
+  return [topLocation.name, topLocation.admin1, topLocation.country].filter(Boolean).join(', ');
+};
+
 const fetchWeatherPayload = async ({ latitude, longitude, city = '', state = '' }) => {
   let resolvedLatitude = Number(latitude);
   let resolvedLongitude = Number(longitude);
@@ -248,6 +266,15 @@ const fetchWeatherPayload = async ({ latitude, longitude, city = '', state = '' 
     resolvedLatitude = Number(topLocation.latitude);
     resolvedLongitude = Number(topLocation.longitude);
     resolvedLocationName = [topLocation.name, topLocation.admin1, topLocation.country].filter(Boolean).join(', ');
+  } else if (!city) {
+    const reverseLocationName = await resolveLocationNameFromCoordinates({
+      latitude: resolvedLatitude,
+      longitude: resolvedLongitude,
+    });
+
+    if (reverseLocationName) {
+      resolvedLocationName = reverseLocationName;
+    }
   }
 
   const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${resolvedLatitude}&longitude=${resolvedLongitude}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,uv_index,visibility,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=5`;
@@ -621,6 +648,8 @@ app.get('/health', (req, res) => {
 app.get('/api/weather/get-weather', authenticateToken, async (req, res) => {
   try {
     const { latitude, longitude, city = '', state = '' } = req.query;
+    const hasCoordinateParams = latitude !== undefined && latitude !== null
+      && longitude !== undefined && longitude !== null;
 
     const fallbackLatitude = req.user?.location?.coordinates?.latitude;
     const fallbackLongitude = req.user?.location?.coordinates?.longitude;
@@ -628,8 +657,8 @@ app.get('/api/weather/get-weather', authenticateToken, async (req, res) => {
     const weatherPayload = await fetchWeatherPayload({
       latitude: latitude ?? fallbackLatitude,
       longitude: longitude ?? fallbackLongitude,
-      city: city || req.user?.location?.city || 'Pune',
-      state: state || req.user?.location?.state || 'Maharashtra',
+      city: city || (hasCoordinateParams ? '' : req.user?.location?.city || 'Pune'),
+      state: state || (hasCoordinateParams ? '' : req.user?.location?.state || 'Maharashtra'),
     });
 
     res.json({
@@ -4696,7 +4725,7 @@ const start = async () => {
 });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
-    app.useprocess.exit(1);
+    process.exit(1);
   }
 };
 

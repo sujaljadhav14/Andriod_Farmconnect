@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
@@ -46,22 +45,16 @@ const WeatherScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [locationCity, setLocationCity] = useState('');
 
-  const getFarmerCoordinates = useCallback(async () => {
+  const getDeviceWeatherParams = useCallback(async () => {
     try {
-      // First try to use farmer's stored location
-      if (user?.location?.city) {
-        setLocationCity(user.location.city);
-        return null; // Let weatherService use city lookup
-      }
-
-      // Fall back to device location
       const { status } = await Location.requestForegroundPermissionsAsync();
 
       if (status !== 'granted') {
-        setLocationCity('Pune'); // Default city
-        return null;
+        return {
+          city: user?.location?.city,
+          state: user?.location?.state,
+        };
       }
 
       const position = await Location.getCurrentPositionAsync({
@@ -69,18 +62,41 @@ const WeatherScreen = () => {
       });
 
       if (!position?.coords) {
-        setLocationCity('Pune');
-        return null;
+        return {
+          city: user?.location?.city,
+          state: user?.location?.state,
+        };
       }
 
-      return {
+      const params = {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
       };
+
+      try {
+        const [place] = await Location.reverseGeocodeAsync({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+
+        if (place?.city || place?.subregion || place?.district) {
+          params.city = place.city || place.subregion || place.district;
+        }
+
+        if (place?.region || place?.subregion) {
+          params.state = place.region || place.subregion;
+        }
+      } catch (reverseGeocodeError) {
+        console.warn('Reverse geocoding failed:', reverseGeocodeError.message);
+      }
+
+      return params;
     } catch (err) {
       console.warn('Location access failed:', err.message);
-      setLocationCity('Pune');
-      return null;
+      return {
+        city: user?.location?.city,
+        state: user?.location?.state,
+      };
     }
   }, [user]);
 
@@ -89,18 +105,9 @@ const WeatherScreen = () => {
     setError('');
 
     try {
-      // Use farmer's location city if available
-      const coordinates = user?.location?.city
-        ? { city: user.location.city }
-        : await getFarmerCoordinates();
-
-      const weatherPayload = await weatherService.getWeather(coordinates || { city: 'Pune' });
+      const weatherParams = await getDeviceWeatherParams();
+      const weatherPayload = await weatherService.getWeather(weatherParams || {});
       setWeather(weatherPayload);
-      
-      // Update location display
-      if (user?.location?.city && !locationCity) {
-        setLocationCity(user.location.city);
-      }
     } catch (loadError) {
       console.error('Weather load error:', loadError);
       setError(loadError.message || 'Failed to load weather updates');
@@ -109,7 +116,7 @@ const WeatherScreen = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user, getFarmerCoordinates, locationCity]);
+  }, [getDeviceWeatherParams]);
 
   useEffect(() => {
     if (isFocused) {

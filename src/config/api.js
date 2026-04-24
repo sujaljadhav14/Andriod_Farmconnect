@@ -12,9 +12,9 @@
 // For iOS simulator:    use http://localhost:5050
 // For physical device:  use your PC's LAN IP (e.g. 192.168.x.x)
 
-export const API_BASE_URL = "https://kina-hypersubtle-irremeably.ngrok-free.dev/api";;
-// Socket.IO URL (same as API base)
-export const SOCKET_URL = 'http://192.168.1.100:5001'; // <-- UPDATE THIS IP
+export const API_BASE_URL = 'http://192.168.0.100:5001/api'; // <-- UPDATE THIS IP if WiFi changes (run ipconfig)
+// Socket.IO URL (same as API base, without /api)
+export const SOCKET_URL = 'http://192.168.0.100:5001'; // <-- UPDATE THIS IP if WiFi changes
 
 // API Endpoints
 export const API_ENDPOINTS = {
