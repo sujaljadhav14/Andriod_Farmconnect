@@ -2221,11 +2221,11 @@ app.patch('/api/proposals/:id/accept', authenticateToken, async (req, res) => {
 
     // Create order with orderNumber
     const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-    
+
     // Handle delivery location - provide defaults if not available
     const deliveryLocation = proposal.deliveryLocation || {};
     const contactInfo = proposal.traderId || {};
-    
+
     const order = new Order({
       orderNumber,
       proposalId: proposal._id,
@@ -4721,8 +4721,8 @@ const start = async () => {
     }
 
     httpServer.listen(5001, '0.0.0.0', () => {
-  console.log('Server running on port 5001');
-});
+      console.log('Server running on port 5001');
+    });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     process.exit(1);
