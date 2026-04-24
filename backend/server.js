@@ -4095,12 +4095,68 @@ const toKg = (value, unit = 'kg') => {
   return numericValue;
 };
 
+const DEFAULT_TRANSPORT_SCHEDULE = {
+  monday: { start: '09:00', end: '18:00', active: true },
+  tuesday: { start: '09:00', end: '18:00', active: true },
+  wednesday: { start: '09:00', end: '18:00', active: true },
+  thursday: { start: '09:00', end: '18:00', active: true },
+  friday: { start: '09:00', end: '18:00', active: true },
+  saturday: { start: '10:00', end: '15:00', active: true },
+  sunday: { start: '', end: '', active: false },
+};
+
+const getPaginationOptions = (query = {}, defaults = { page: 1, limit: 20, maxLimit: 100 }) => {
+  const page = Math.max(1, Number(query.page) || defaults.page || 1);
+  const limit = Math.min(
+    defaults.maxLimit || 100,
+    Math.max(1, Number(query.limit) || defaults.limit || 20)
+  );
+
+  return {
+    page,
+    limit,
+    skip: (page - 1) * limit,
+  };
+};
+
+const buildPaginationMeta = ({ page, limit, total }) => {
+  const pages = Math.max(1, Math.ceil(total / limit));
+
+  return {
+    page,
+    limit,
+    total,
+    pages,
+    hasMore: page < pages,
+  };
+};
+
+const normalizeTransportSchedule = (schedule = {}) => {
+  const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+  return Object.keys(DEFAULT_TRANSPORT_SCHEDULE).reduce((acc, day) => {
+    const fallback = DEFAULT_TRANSPORT_SCHEDULE[day];
+    const incoming = schedule?.[day] || {};
+    const start = typeof incoming.start === 'string' && timeRegex.test(incoming.start) ? incoming.start : fallback.start;
+    const end = typeof incoming.end === 'string' && timeRegex.test(incoming.end) ? incoming.end : fallback.end;
+
+    acc[day] = {
+      start,
+      end,
+      active: incoming.active !== undefined ? Boolean(incoming.active) : fallback.active,
+    };
+
+    return acc;
+  }, {});
+};
+
 // Get available orders for transport assignment
 app.get('/api/transport/available', authenticateToken, async (req, res) => {
   try {
     if (!ensureTransportRole(req, res)) return;
 
     const { city, state } = req.query;
+    const { page, limit, skip } = getPaginationOptions(req.query, { page: 1, limit: 20, maxLimit: 100 });
     const filter = {
       status: 'ready_for_pickup',
       $or: [
@@ -4121,12 +4177,17 @@ app.get('/api/transport/available', authenticateToken, async (req, res) => {
       .populate('cropId', 'cropName category images')
       .populate('farmerId', 'name phone location')
       .populate('traderId', 'name phone location')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await Order.countDocuments(filter);
 
     res.json({
       success: true,
       data: orders,
-      total: orders.length,
+      total,
+      pagination: buildPaginationMeta({ page, limit, total }),
     });
   } catch (error) {
     console.error('Get transport available orders error:', error);
@@ -4197,6 +4258,7 @@ app.get('/api/transport/my-deliveries', authenticateToken, async (req, res) => {
     if (!ensureTransportRole(req, res)) return;
 
     const { status = 'active' } = req.query;
+    const { page, limit, skip } = getPaginationOptions(req.query, { page: 1, limit: 20, maxLimit: 100 });
     const filter = {
       'transportDetails.driverId': req.user._id,
     };
@@ -4211,12 +4273,17 @@ app.get('/api/transport/my-deliveries', authenticateToken, async (req, res) => {
       .populate('cropId', 'cropName category images')
       .populate('farmerId', 'name phone location')
       .populate('traderId', 'name phone location')
-      .sort({ updatedAt: -1 });
+      .sort({ updatedAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await Order.countDocuments(filter);
 
     res.json({
       success: true,
       data: deliveries,
-      total: deliveries.length,
+      total,
+      pagination: buildPaginationMeta({ page, limit, total }),
     });
   } catch (error) {
     console.error('Get transport deliveries error:', error);
@@ -4229,23 +4296,143 @@ app.get('/api/transport/history', authenticateToken, async (req, res) => {
   try {
     if (!ensureTransportRole(req, res)) return;
 
-    const history = await Order.find({
+    const { page, limit, skip } = getPaginationOptions(req.query, { page: 1, limit: 20, maxLimit: 100 });
+
+    const filter = {
       'transportDetails.driverId': req.user._id,
       status: { $in: ['delivered', 'completed', 'cancelled'] },
-    })
+    };
+
+    const history = await Order.find(filter)
       .populate('cropId', 'cropName category images')
       .populate('farmerId', 'name phone location')
       .populate('traderId', 'name phone location')
-      .sort({ updatedAt: -1 });
+      .sort({ updatedAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await Order.countDocuments(filter);
 
     res.json({
       success: true,
       data: history,
-      total: history.length,
+      total,
+      pagination: buildPaginationMeta({ page, limit, total }),
     });
   } catch (error) {
     console.error('Get transport history error:', error);
     res.status(500).json({ message: 'Failed to fetch transport history', error: error.message });
+  }
+});
+
+// Get transporter weekly schedule
+app.get('/api/transport/schedule', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureTransportRole(req, res)) return;
+
+    const user = await User.findById(req.user._id).select('transportSettings.schedule');
+    const schedule = normalizeTransportSchedule(user?.transportSettings?.schedule || DEFAULT_TRANSPORT_SCHEDULE);
+
+    res.json({
+      success: true,
+      data: schedule,
+    });
+  } catch (error) {
+    console.error('Get transport schedule error:', error);
+    res.status(500).json({ message: 'Failed to fetch schedule', error: error.message });
+  }
+});
+
+// Update transporter weekly schedule
+app.put('/api/transport/schedule', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureTransportRole(req, res)) return;
+
+    const normalizedSchedule = normalizeTransportSchedule(req.body || {});
+
+    await User.findByIdAndUpdate(req.user._id, {
+      $set: {
+        'transportSettings.schedule': normalizedSchedule,
+        'transportSettings.updatedAt': new Date(),
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'Schedule updated successfully',
+      data: normalizedSchedule,
+    });
+  } catch (error) {
+    console.error('Update transport schedule error:', error);
+    res.status(500).json({ message: 'Failed to update schedule', error: error.message });
+  }
+});
+
+// Get support tickets created by transporter
+app.get('/api/transport/support/tickets', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureTransportRole(req, res)) return;
+
+    const { page, limit, skip } = getPaginationOptions(req.query, { page: 1, limit: 20, maxLimit: 100 });
+    const user = await User.findById(req.user._id).select('transportSettings.supportTickets');
+    const tickets = Array.isArray(user?.transportSettings?.supportTickets)
+      ? user.transportSettings.supportTickets
+      : [];
+
+    const ordered = [...tickets].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const paged = ordered.slice(skip, skip + limit);
+    const total = ordered.length;
+
+    res.json({
+      success: true,
+      data: paged,
+      total,
+      pagination: buildPaginationMeta({ page, limit, total }),
+    });
+  } catch (error) {
+    console.error('Get transport support tickets error:', error);
+    res.status(500).json({ message: 'Failed to fetch support tickets', error: error.message });
+  }
+});
+
+// Create support ticket by transporter
+app.post('/api/transport/support/tickets', authenticateToken, async (req, res) => {
+  try {
+    if (!ensureTransportRole(req, res)) return;
+
+    const subject = String(req.body?.subject || '').trim();
+    const message = String(req.body?.message || '').trim();
+
+    if (!subject || !message) {
+      return res.status(400).json({ message: 'subject and message are required' });
+    }
+
+    const supportTicket = {
+      subject,
+      message,
+      status: 'open',
+      createdAt: new Date(),
+    };
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      {
+        $push: { 'transportSettings.supportTickets': supportTicket },
+        $set: { 'transportSettings.updatedAt': new Date() },
+      },
+      { new: true, projection: { 'transportSettings.supportTickets': 1 } }
+    );
+
+    const created = updatedUser?.transportSettings?.supportTickets?.slice(-1)?.[0] || supportTicket;
+
+    res.status(201).json({
+      success: true,
+      message: 'Support ticket submitted successfully',
+      data: created,
+    });
+  } catch (error) {
+    console.error('Create transport support ticket error:', error);
+    res.status(500).json({ message: 'Failed to submit support ticket', error: error.message });
   }
 });
 
@@ -4433,15 +4620,25 @@ app.get('/api/vehicles/my-vehicles', authenticateToken, async (req, res) => {
   try {
     if (!ensureTransportRole(req, res)) return;
 
-    const vehicles = await Vehicle.find({
+    const { page, limit, skip } = getPaginationOptions(req.query, { page: 1, limit: 20, maxLimit: 100 });
+
+    const filter = {
       transporterId: req.user._id,
       isActive: true,
-    }).sort({ createdAt: -1 });
+    };
+
+    const vehicles = await Vehicle.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await Vehicle.countDocuments(filter);
 
     res.json({
       success: true,
       data: vehicles,
-      total: vehicles.length,
+      total,
+      pagination: buildPaginationMeta({ page, limit, total }),
     });
   } catch (error) {
     console.error('Get vehicles error:', error);
@@ -4601,22 +4798,31 @@ app.get('/api/vehicles/orders/available', authenticateToken, async (req, res) =>
   try {
     if (!ensureTransportRole(req, res)) return;
 
-    const orders = await Order.find({
+    const { page, limit, skip } = getPaginationOptions(req.query, { page: 1, limit: 20, maxLimit: 100 });
+
+    const filter = {
       status: 'ready_for_pickup',
       $or: [
         { 'transportDetails.driverId': { $exists: false } },
         { 'transportDetails.driverId': null },
       ],
-    })
+    };
+
+    const orders = await Order.find(filter)
       .populate('cropId', 'cropName category images')
       .populate('farmerId', 'name phone location')
       .populate('traderId', 'name phone location')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await Order.countDocuments(filter);
 
     res.json({
       success: true,
       data: orders,
-      total: orders.length,
+      total,
+      pagination: buildPaginationMeta({ page, limit, total }),
     });
   } catch (error) {
     console.error('Get vehicle available orders error:', error);

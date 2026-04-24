@@ -16,12 +16,25 @@ import vehicleService from '../../services/vehicleService';
 import { LoadingSpinner, StatusBadge } from '../../components/common';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
+const DASHBOARD_FEATURES = [
+  { key: 'available', title: 'Available Orders', icon: 'local-shipping', color: '#1565C0', screen: 'AvailableOrders' },
+  { key: 'deliveries', title: 'My Deliveries', icon: 'delivery-dining', color: '#2E7D32', screen: 'MyDeliveries' },
+  { key: 'kyc', title: 'KYC Verification', icon: 'badge', color: '#3949AB', screen: 'KYC' },
+  { key: 'history', title: 'Delivery History', icon: 'history', color: '#FB8C00', screen: 'DeliveryHistory' },
+  { key: 'routes', title: 'Route Planning', icon: 'map', color: '#00838F', screen: 'RoutePlanning' },
+  { key: 'earnings', title: 'Earnings', icon: 'account-balance-wallet', color: '#7B1FA2', screen: 'Earnings' },
+  { key: 'schedule', title: 'Schedule', icon: 'event-available', color: '#455A64', screen: 'Schedule' },
+  { key: 'vehicles', title: 'Vehicles', icon: 'directions-car', color: '#E65100', screen: 'Vehicles' },
+  { key: 'support', title: 'Support', icon: 'support-agent', color: '#0288D1', screen: 'Support' },
+];
+
 const TransportDashboardScreen = ({ navigation }) => {
   const isFocused = useIsFocused();
   const { user, logout } = useAuth();
+
   const handleLogout = async () => {
-  await logout();
-};
+    await logout();
+  };
   const [stats, setStats] = useState([
     { key: 'active', label: 'Active Deliveries', value: '0', icon: 'local-shipping', color: '#1565C0' },
     { key: 'completed', label: 'Completed', value: '0', icon: 'check-circle', color: '#2E7D32' },
@@ -153,19 +166,23 @@ const TransportDashboardScreen = ({ navigation }) => {
         </View>
       ) : null}
 
-      <View style={styles.quickActions}>
-        <TouchableOpacity style={styles.quickActionBtn} onPress={() => navigation.navigate('AvailableOrders')}>
-          <MaterialIcons name="local-shipping" size={18} color="#1565C0" />
-          <Text style={styles.quickActionText}>Available Orders</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.quickActionBtn} onPress={() => navigation.navigate('MyDeliveries')}>
-          <MaterialIcons name="delivery-dining" size={18} color="#1565C0" />
-          <Text style={styles.quickActionText}>My Deliveries</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.quickActionBtn} onPress={() => navigation.navigate('Vehicles')}>
-          <MaterialIcons name="directions-car" size={18} color="#1565C0" />
-          <Text style={styles.quickActionText}>Vehicles</Text>
-        </TouchableOpacity>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Transport Features</Text>
+        <View style={styles.featureGrid}>
+          {DASHBOARD_FEATURES.map((feature) => (
+            <TouchableOpacity
+              key={feature.key}
+              style={styles.featureCard}
+              onPress={() => navigation.navigate(feature.screen)}
+              activeOpacity={0.85}
+            >
+              <View style={[styles.featureIconWrap, { backgroundColor: `${feature.color}1A` }]}>
+                <MaterialIcons name={feature.icon} size={18} color={feature.color} />
+              </View>
+              <Text style={styles.featureTitle}>{feature.title}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
       <View style={styles.section}>
@@ -251,18 +268,37 @@ const styles = StyleSheet.create({
   errorText: { flex: 1, marginLeft: 8, color: Colors.error, fontSize: 13 },
   retryBtn: { backgroundColor: Colors.error, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   retryText: { color: Colors.white, fontWeight: '600', fontSize: 12 },
-  quickActions: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, marginTop: 4, marginBottom: 8 },
-  quickActionBtn: {
-    flex: 1,
-    marginHorizontal: 4,
-    backgroundColor: Colors.surface,
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#1565C025',
+  featureGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
-  quickActionText: { marginTop: 4, fontSize: 11, fontWeight: '600', color: '#1565C0' },
+  featureCard: {
+    width: '31%',
+    marginBottom: 10,
+    borderRadius: 10,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+  },
+  featureIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  featureTitle: {
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.text,
+    lineHeight: 14,
+  },
   deliveryCard: {
     backgroundColor: Colors.surface, borderRadius: 12, padding: 16, marginBottom: 12,
     elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2,

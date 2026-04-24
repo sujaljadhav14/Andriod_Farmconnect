@@ -17,6 +17,12 @@ import AvailableOrdersScreen from '../screens/transport/AvailableOrdersScreen';
 import MyDeliveriesScreen from '../screens/transport/MyDeliveriesScreen';
 import VehicleManagementScreen from '../screens/transport/VehicleManagementScreen';
 import DeliveryDetailScreen from '../screens/transport/DeliveryDetailScreen';
+import TransportKYCScreen from '../screens/transport/TransportKYCScreen';
+import DeliveryHistoryScreen from '../screens/transport/DeliveryHistoryScreen';
+import RoutePlanningScreen from '../screens/transport/RoutePlanningScreen';
+import TransportEarningsScreen from '../screens/transport/TransportEarningsScreen';
+import ScheduleManagementScreen from '../screens/transport/ScheduleManagementScreen';
+import TransportSupportScreen from '../screens/transport/TransportSupportScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -69,35 +75,34 @@ const DashboardStack = () => {
         component={DriverDetails}
         options={{ title: 'Driver Profile' }}
       />
-      {/* Add placeholder screens for other features */}
       <Stack.Screen
         name="KYC"
-        component={VehicleManagementScreen} // Placeholder
+        component={TransportKYCScreen}
         options={{ title: 'KYC Verification' }}
       />
       <Stack.Screen
         name="DeliveryHistory"
-        component={VehicleManagementScreen} // Placeholder
+        component={DeliveryHistoryScreen}
         options={{ title: 'Delivery History' }}
       />
       <Stack.Screen
         name="RoutePlanning"
-        component={VehicleManagementScreen} // Placeholder
+        component={RoutePlanningScreen}
         options={{ title: 'Route Planning' }}
       />
       <Stack.Screen
         name="Earnings"
-        component={VehicleManagementScreen} // Placeholder
+        component={TransportEarningsScreen}
         options={{ title: 'Earnings' }}
       />
       <Stack.Screen
         name="Schedule"
-        component={VehicleManagementScreen} // Placeholder
+        component={ScheduleManagementScreen}
         options={{ title: 'Schedule Management' }}
       />
       <Stack.Screen
         name="Support"
-        component={VehicleManagementScreen} // Placeholder
+        component={TransportSupportScreen}
         options={{ title: 'Support' }}
       />
     </Stack.Navigator>

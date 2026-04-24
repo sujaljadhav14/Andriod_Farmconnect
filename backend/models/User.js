@@ -91,6 +91,60 @@ const userSchema = new mongoose.Schema({
     ifscCode: String,
     accountHolderName: String,
   },
+  transportSettings: {
+    schedule: {
+      monday: {
+        start: { type: String, default: '09:00' },
+        end: { type: String, default: '18:00' },
+        active: { type: Boolean, default: true },
+      },
+      tuesday: {
+        start: { type: String, default: '09:00' },
+        end: { type: String, default: '18:00' },
+        active: { type: Boolean, default: true },
+      },
+      wednesday: {
+        start: { type: String, default: '09:00' },
+        end: { type: String, default: '18:00' },
+        active: { type: Boolean, default: true },
+      },
+      thursday: {
+        start: { type: String, default: '09:00' },
+        end: { type: String, default: '18:00' },
+        active: { type: Boolean, default: true },
+      },
+      friday: {
+        start: { type: String, default: '09:00' },
+        end: { type: String, default: '18:00' },
+        active: { type: Boolean, default: true },
+      },
+      saturday: {
+        start: { type: String, default: '10:00' },
+        end: { type: String, default: '15:00' },
+        active: { type: Boolean, default: true },
+      },
+      sunday: {
+        start: { type: String, default: '' },
+        end: { type: String, default: '' },
+        active: { type: Boolean, default: false },
+      },
+    },
+    supportTickets: [{
+      subject: { type: String, trim: true, default: '' },
+      message: { type: String, trim: true, default: '' },
+      status: {
+        type: String,
+        enum: ['open', 'closed'],
+        default: 'open',
+      },
+      createdAt: {
+        type: Date,
+        default: Date.now,
+      },
+      resolvedAt: Date,
+    }],
+    updatedAt: Date,
+  },
   profileImage: String,
 }, {
   timestamps: true,

@@ -82,6 +82,8 @@ export const API_ENDPOINTS = {
     ACCEPT: (orderId) => `/transport/accept/${orderId}`,
     MY_DELIVERIES: '/transport/my-deliveries',
     HISTORY: '/transport/history',
+    SCHEDULE: '/transport/schedule',
+    SUPPORT_TICKETS: '/transport/support/tickets',
     STATUS: (deliveryId) => `/transport/status/${deliveryId}`,
     DETAILS: (deliveryId) => `/transport/details/${deliveryId}`,
     LOCATION_UPDATE: (deliveryId) => `/transport/location/${deliveryId}`,

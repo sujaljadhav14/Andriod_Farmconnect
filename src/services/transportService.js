@@ -45,8 +45,30 @@ class TransportService {
 
         const endpoint = withQueryParams(API_ENDPOINTS.TRANSPORT.MY_DELIVERIES, {
             status,
+            page: options.page,
+            limit: options.limit,
         });
         return apiService.get(endpoint);
+    }
+
+    async getSchedule() {
+        return apiService.get(API_ENDPOINTS.TRANSPORT.SCHEDULE);
+    }
+
+    async updateSchedule(schedule) {
+        return apiService.put(API_ENDPOINTS.TRANSPORT.SCHEDULE, schedule);
+    }
+
+    async getSupportTickets(options = {}) {
+        const endpoint = withQueryParams(API_ENDPOINTS.TRANSPORT.SUPPORT_TICKETS, {
+            page: options.page,
+            limit: options.limit,
+        });
+        return apiService.get(endpoint);
+    }
+
+    async createSupportTicket(payload) {
+        return apiService.post(API_ENDPOINTS.TRANSPORT.SUPPORT_TICKETS, payload);
     }
 
     async updateDeliveryStatus(deliveryId, status, note = '') {
@@ -138,6 +160,19 @@ class TransportService {
             recentPath: payload?.recentPath || payload?.locationHistory || [],
             transporter: payload?.transporter || null,
         };
+    }
+
+    normalizeSupportTickets(items) {
+        if (!Array.isArray(items)) return [];
+
+        return items.map((item) => ({
+            id: item?._id || item?.id || '',
+            subject: item?.subject || 'Support Request',
+            message: item?.message || '',
+            status: item?.status || 'open',
+            createdAt: item?.createdAt || null,
+            resolvedAt: item?.resolvedAt || null,
+        }));
     }
 
     normalizeDeliveries(orders) {
