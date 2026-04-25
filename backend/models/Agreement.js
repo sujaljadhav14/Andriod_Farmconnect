@@ -99,7 +99,7 @@ const agreementSchema = new mongoose.Schema({
     timestamps: true,
 });
 
-agreementSchema.pre('save', function (next) {
+agreementSchema.pre('save', async function () {
     if (!this.documentNumber && this.isNew) {
         const ts = Date.now().toString(36).toUpperCase();
         const random = Math.random().toString(36).slice(2, 7).toUpperCase();
@@ -109,8 +109,6 @@ agreementSchema.pre('save', function (next) {
     if (this.status === 'completed' && !this.completedAt) {
         this.completedAt = new Date();
     }
-
-    next();
 });
 
 agreementSchema.index({ farmerId: 1, status: 1 });

@@ -18,6 +18,7 @@ import cropService from '../../services/cropService';
 import uploadService from '../../services/uploadService';
 import { Button, LoadingSpinner } from '../../components/common';
 import { CROP_CATEGORIES, QUALITY_GRADES, CROP_UNITS } from '../../config/constants';
+import { API_ENDPOINTS } from '../../config/api';
 import { formatDate } from '../../utils/formatters';
 import apiService from '../../services/apiService';
 
@@ -159,11 +160,11 @@ const AddCropScreen = ({ navigation, route }) => {
     console.log('Health check:', healthCheck);
 
     // Test crops endpoint
-    const cropTest = await apiService.testEndpoint('/api/crops/available');
+    const cropTest = await apiService.testEndpoint(API_ENDPOINTS.CROPS.AVAILABLE);
     console.log('Crop endpoint test:', cropTest);
 
     // Test with auth
-    const authTest = await apiService.testEndpoint('/api/crops/add', 'POST');
+    const authTest = await apiService.testEndpoint(API_ENDPOINTS.CROPS.ADD, 'POST');
     console.log('Add crop endpoint test:', authTest);
 
     Alert.alert('Network Test', `Health: ${healthCheck}, Crops: ${cropTest.success}, Auth: ${authTest.success}`);

@@ -8,14 +8,13 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const fs = require('fs');
+const PDFDocument = require('pdfkit');
 const http = require('http');
 const { Server } = require('socket.io');
 
-// Import Routes (AFTER express is created but BEFORE they're used)
-const authRoutes = require('./routes/authRoutes');
-const proposalRoutes = require('./routes/proposalRoutes');
-const cropRoutes = require('./routes/cropRoutes');
-const adminRoutes = require('./routes/adminRoutes');
+const { createWeatherRoutes } = require('./routes/weatherRoutes');
+const { createCommunityRoutes } = require('./routes/communityRoutes');
+const { createTaskRoutes } = require('./routes/taskRoutes');
 
 // Import Models
 const User = require('./models/User');
@@ -26,31 +25,52 @@ const Vehicle = require('./models/Vehicle');
 const Transaction = require('./models/Transaction');
 const Agreement = require('./models/Agreement');
 const Dispute = require('./models/Dispute');
-const CommunityPost = require('./models/CommunityPost');
-const Task = require('./models/Task');
 
 const httpServer = http.createServer(app);
 const port = Number(process.env.PORT || 5050);
 const mongoUri = process.env.MONGO_URI;
-const JWT_SECRET = process.env.JWT_SECRET || 'farmconnect_mobile_secret_key_2024';
+const jwtSecret = process.env.JWT_SECRET;
+const isProduction = process.env.NODE_ENV === 'production';
+const JWT_SECRET = jwtSecret || 'farmconnect_dev_secret_change_me';
+
+if (!jwtSecret) {
+  const warning = 'JWT_SECRET is not set. Using development fallback secret.';
+  if (isProduction) {
+    throw new Error(`${warning} Set JWT_SECRET before starting production.`);
+  }
+  console.warn(`⚠️ ${warning}`);
+}
+
+const allowedOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error('CORS blocked for this origin'));
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+};
+
+const socketCorsOrigin = allowedOrigins.length ? allowedOrigins : true;
 
 const io = new Server(httpServer, {
   cors: {
-    origin: '*',
+    origin: socketCorsOrigin,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   },
 });
 
 // ✅ MIDDLEWARE - MUST BE FIRST
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
-
-// ✅ THEN MOUNT ROUTES
-app.use('/api/auth', authRoutes);
-app.use('/api/proposals', proposalRoutes);
-app.use('/api/crops', cropRoutes);
-app.use('/api/admin', adminRoutes);
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -73,7 +93,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  limits: { fileSize: 10 * 1024 * 1024 }, // Match the mobile app upload limit.
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|gif/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
@@ -121,6 +141,9 @@ const authenticateToken = async (req, res, next) => {
     return res.status(403).json({ message: 'Invalid token' });
   }
 };
+
+app.use('/api/community', createCommunityRoutes({ authenticateToken }));
+app.use('/api/tasks', createTaskRoutes({ authenticateToken }));
 
 // Helper function to generate JWT token
 const generateToken = (userId) => {
@@ -223,24 +246,6 @@ const getWeatherMetaFromCode = (weatherCode, isDay = true) => {
   return { condition: 'Weather Update', icon: 'wb-sunny' };
 };
 
-const resolveLocationNameFromCoordinates = async ({ latitude, longitude }) => {
-  const reverseGeocodeUrl = `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&count=1&language=en&format=json`;
-  const reverseGeocodeResponse = await fetch(reverseGeocodeUrl);
-
-  if (!reverseGeocodeResponse.ok) {
-    return '';
-  }
-
-  const reverseGeocodeData = await reverseGeocodeResponse.json();
-  const topLocation = reverseGeocodeData?.results?.[0];
-
-  if (!topLocation) {
-    return '';
-  }
-
-  return [topLocation.name, topLocation.admin1, topLocation.country].filter(Boolean).join(', ');
-};
-
 const fetchWeatherPayload = async ({ latitude, longitude, city = '', state = '' }) => {
   let resolvedLatitude = Number(latitude);
   let resolvedLongitude = Number(longitude);
@@ -266,15 +271,6 @@ const fetchWeatherPayload = async ({ latitude, longitude, city = '', state = '' 
     resolvedLatitude = Number(topLocation.latitude);
     resolvedLongitude = Number(topLocation.longitude);
     resolvedLocationName = [topLocation.name, topLocation.admin1, topLocation.country].filter(Boolean).join(', ');
-  } else if (!city) {
-    const reverseLocationName = await resolveLocationNameFromCoordinates({
-      latitude: resolvedLatitude,
-      longitude: resolvedLongitude,
-    });
-
-    if (reverseLocationName) {
-      resolvedLocationName = reverseLocationName;
-    }
   }
 
   const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${resolvedLatitude}&longitude=${resolvedLongitude}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,uv_index,visibility,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=5`;
@@ -336,6 +332,8 @@ const fetchWeatherPayload = async ({ latitude, longitude, city = '', state = '' 
     forecast,
   };
 };
+
+app.use('/api/weather', createWeatherRoutes({ authenticateToken, fetchWeatherPayload }));
 
 const buildAgreementDocumentBody = ({ order, cropName, farmerName, traderName }) => {
   const deliveryParts = [
@@ -641,100 +639,6 @@ app.get('/health', (req, res) => {
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     timestamp: new Date().toISOString(),
   });
-});
-
-// ============ WEATHER ROUTES ============
-
-app.get('/api/weather/get-weather', authenticateToken, async (req, res) => {
-  try {
-    const { latitude, longitude, city = '', state = '' } = req.query;
-    const hasCoordinateParams = latitude !== undefined && latitude !== null
-      && longitude !== undefined && longitude !== null;
-
-    const fallbackLatitude = req.user?.location?.coordinates?.latitude;
-    const fallbackLongitude = req.user?.location?.coordinates?.longitude;
-
-    const weatherPayload = await fetchWeatherPayload({
-      latitude: latitude ?? fallbackLatitude,
-      longitude: longitude ?? fallbackLongitude,
-      city: city || (hasCoordinateParams ? '' : req.user?.location?.city || 'Pune'),
-      state: state || (hasCoordinateParams ? '' : req.user?.location?.state || 'Maharashtra'),
-    });
-
-    res.json({
-      success: true,
-      data: weatherPayload,
-    });
-  } catch (error) {
-    console.error('Get weather error:', error);
-    res.status(500).json({ message: 'Failed to fetch weather data', error: error.message });
-  }
-});
-
-app.get('/api/weather/my-locations', authenticateToken, async (req, res) => {
-  try {
-    const latitude = req.user?.location?.coordinates?.latitude;
-    const longitude = req.user?.location?.coordinates?.longitude;
-
-    const primaryLabel = [
-      req.user?.location?.city,
-      req.user?.location?.state,
-    ].filter(Boolean).join(', ') || 'Current Location';
-
-    res.json({
-      success: true,
-      data: [
-        {
-          id: 'primary',
-          label: primaryLabel,
-          latitude: Number.isFinite(Number(latitude)) ? Number(latitude) : null,
-          longitude: Number.isFinite(Number(longitude)) ? Number(longitude) : null,
-          isFavorite: true,
-        },
-      ],
-    });
-  } catch (error) {
-    console.error('Get weather locations error:', error);
-    res.status(500).json({ message: 'Failed to fetch weather locations', error: error.message });
-  }
-});
-
-app.get('/api/weather/location/:weatherId', authenticateToken, async (req, res) => {
-  try {
-    if (req.params.weatherId !== 'primary') {
-      return res.status(404).json({ message: 'Weather location not found' });
-    }
-
-    const latitude = req.user?.location?.coordinates?.latitude;
-    const longitude = req.user?.location?.coordinates?.longitude;
-
-    const weatherPayload = await fetchWeatherPayload({
-      latitude,
-      longitude,
-      city: req.user?.location?.city || 'Pune',
-      state: req.user?.location?.state || 'Maharashtra',
-    });
-
-    res.json({
-      success: true,
-      data: weatherPayload,
-    });
-  } catch (error) {
-    console.error('Get weather location details error:', error);
-    res.status(500).json({ message: 'Failed to fetch weather location details', error: error.message });
-  }
-});
-
-app.put('/api/weather/favorite/:weatherId', authenticateToken, async (req, res) => {
-  try {
-    res.json({
-      success: true,
-      message: `Weather location ${req.params.weatherId} marked as favorite`,
-    });
-  } catch (error) {
-    console.error('Set weather favorite error:', error);
-    res.status(500).json({ message: 'Failed to update weather favorite', error: error.message });
-  }
 });
 
 // ============ AUTHENTICATION ROUTES ============
@@ -1158,378 +1062,6 @@ app.put('/api/auth/kyc-reject/:kycId', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Reject KYC error:', error);
     res.status(500).json({ message: 'Failed to reject KYC', error: error.message });
-  }
-});
-
-// ============ COMMUNITY ROUTES ============
-
-const serializeCommunityPost = (post, viewerId) => {
-  const likedByMe = (post.likes || []).some((userId) => idsEqual(userId, viewerId));
-
-  return {
-    id: post._id,
-    content: post.content,
-    cropCategory: post.cropCategory,
-    tags: post.tags || [],
-    author: post.authorId ? {
-      id: post.authorId._id,
-      name: post.authorId.name,
-      role: post.authorId.role,
-      phone: post.authorId.phone,
-    } : null,
-    likeCount: (post.likes || []).length,
-    commentCount: (post.comments || []).length,
-    likedByMe,
-    comments: (post.comments || []).map((comment) => ({
-      id: comment._id,
-      content: comment.content,
-      createdAt: comment.createdAt,
-      user: comment.userId ? {
-        id: comment.userId._id,
-        name: comment.userId.name,
-        role: comment.userId.role,
-      } : null,
-    })),
-    isPinned: post.isPinned,
-    createdAt: post.createdAt,
-    updatedAt: post.updatedAt,
-  };
-};
-
-app.get('/api/community/posts', authenticateToken, async (req, res) => {
-  try {
-    const { category, page = 1, limit = 20 } = req.query;
-
-    const query = {
-      isActive: true,
-    };
-
-    if (category && category !== 'all' && category !== 'General') {
-      query.cropCategory = category;
-    }
-
-    const pageNumber = Math.max(1, Number(page) || 1);
-    const pageSize = Math.min(100, Math.max(1, Number(limit) || 20));
-    const skip = (pageNumber - 1) * pageSize;
-
-    const [posts, total] = await Promise.all([
-      CommunityPost.find(query)
-        .populate('authorId', 'name role phone')
-        .populate('comments.userId', 'name role')
-        .sort({ isPinned: -1, createdAt: -1 })
-        .skip(skip)
-        .limit(pageSize),
-      CommunityPost.countDocuments(query),
-    ]);
-
-    res.json({
-      success: true,
-      data: posts.map((post) => serializeCommunityPost(post, req.user._id)),
-      pagination: {
-        total,
-        page: pageNumber,
-        pages: Math.ceil(total / pageSize),
-        limit: pageSize,
-      },
-    });
-  } catch (error) {
-    console.error('Get community posts error:', error);
-    res.status(500).json({ message: 'Failed to fetch community posts', error: error.message });
-  }
-});
-
-app.post('/api/community/posts', authenticateToken, async (req, res) => {
-  try {
-    const {
-      content,
-      cropCategory = 'General',
-      tags = [],
-    } = req.body || {};
-
-    if (!content || String(content).trim().length < 3) {
-      return res.status(400).json({ message: 'Post content must be at least 3 characters' });
-    }
-
-    const normalizedTags = Array.isArray(tags)
-      ? tags.map((tag) => String(tag).trim()).filter(Boolean).slice(0, 5)
-      : String(tags || '')
-        .split(',')
-        .map((tag) => tag.trim())
-        .filter(Boolean)
-        .slice(0, 5);
-
-    const post = await CommunityPost.create({
-      authorId: req.user._id,
-      content: String(content).trim(),
-      cropCategory,
-      tags: normalizedTags,
-    });
-
-    const populatedPost = await CommunityPost.findById(post._id)
-      .populate('authorId', 'name role phone')
-      .populate('comments.userId', 'name role');
-
-    res.status(201).json({
-      success: true,
-      message: 'Post created successfully',
-      data: serializeCommunityPost(populatedPost, req.user._id),
-    });
-  } catch (error) {
-    console.error('Create community post error:', error);
-    res.status(500).json({ message: 'Failed to create post', error: error.message });
-  }
-});
-
-app.post('/api/community/posts/:postId/like', authenticateToken, async (req, res) => {
-  try {
-    const post = await CommunityPost.findOne({
-      _id: req.params.postId,
-      isActive: true,
-    });
-
-    if (!post) {
-      return res.status(404).json({ message: 'Post not found' });
-    }
-
-    const currentUserId = req.user._id;
-    const alreadyLiked = (post.likes || []).some((userId) => idsEqual(userId, currentUserId));
-
-    if (alreadyLiked) {
-      post.likes = (post.likes || []).filter((userId) => !idsEqual(userId, currentUserId));
-    } else {
-      post.likes = [...(post.likes || []), currentUserId];
-    }
-
-    await post.save();
-
-    res.json({
-      success: true,
-      message: alreadyLiked ? 'Post unliked successfully' : 'Post liked successfully',
-      data: {
-        id: post._id,
-        likedByMe: !alreadyLiked,
-        likeCount: (post.likes || []).length,
-      },
-    });
-  } catch (error) {
-    console.error('Like community post error:', error);
-    res.status(500).json({ message: 'Failed to like post', error: error.message });
-  }
-});
-
-app.post('/api/community/posts/:postId/comment', authenticateToken, async (req, res) => {
-  try {
-    const { comment, content } = req.body || {};
-    const commentText = String(comment || content || '').trim();
-
-    if (!commentText) {
-      return res.status(400).json({ message: 'Comment text is required' });
-    }
-
-    const post = await CommunityPost.findOne({
-      _id: req.params.postId,
-      isActive: true,
-    });
-
-    if (!post) {
-      return res.status(404).json({ message: 'Post not found' });
-    }
-
-    post.comments.push({
-      userId: req.user._id,
-      content: commentText,
-      createdAt: new Date(),
-    });
-    await post.save();
-
-    const populatedPost = await CommunityPost.findById(post._id)
-      .populate('authorId', 'name role phone')
-      .populate('comments.userId', 'name role');
-
-    res.json({
-      success: true,
-      message: 'Comment added successfully',
-      data: serializeCommunityPost(populatedPost, req.user._id),
-    });
-  } catch (error) {
-    console.error('Comment community post error:', error);
-    res.status(500).json({ message: 'Failed to comment on post', error: error.message });
-  }
-});
-
-// ============ FARM TASK ROUTES ============
-
-app.post('/api/tasks/create', authenticateToken, async (req, res) => {
-  try {
-    if (req.user.role !== 'farmer') {
-      return res.status(403).json({ message: 'Only farmers can create tasks' });
-    }
-
-    const {
-      title,
-      description = '',
-      category = 'Other',
-      priority = 'medium',
-      dueDate,
-      notes = '',
-      reminderAt,
-    } = req.body || {};
-
-    if (!title || !dueDate) {
-      return res.status(400).json({ message: 'title and dueDate are required' });
-    }
-
-    const parsedDueDate = new Date(dueDate);
-    if (Number.isNaN(parsedDueDate.getTime())) {
-      return res.status(400).json({ message: 'Invalid dueDate value' });
-    }
-
-    const task = await Task.create({
-      farmerId: req.user._id,
-      title: String(title).trim(),
-      description: String(description).trim(),
-      category,
-      priority,
-      dueDate: parsedDueDate,
-      notes: String(notes).trim(),
-      reminderAt: reminderAt ? new Date(reminderAt) : undefined,
-    });
-
-    res.status(201).json({
-      success: true,
-      message: 'Task created successfully',
-      data: task,
-    });
-  } catch (error) {
-    console.error('Create farm task error:', error);
-    res.status(500).json({ message: 'Failed to create task', error: error.message });
-  }
-});
-
-app.get('/api/tasks/my-tasks', authenticateToken, async (req, res) => {
-  try {
-    if (req.user.role !== 'farmer') {
-      return res.status(403).json({ message: 'Only farmers can access tasks' });
-    }
-
-    const {
-      status,
-      category,
-      fromDate,
-      toDate,
-    } = req.query;
-
-    const query = {
-      farmerId: req.user._id,
-    };
-
-    if (status) {
-      query.status = status;
-    }
-    if (category && category !== 'all') {
-      query.category = category;
-    }
-    if (fromDate || toDate) {
-      query.dueDate = {};
-      if (fromDate) query.dueDate.$gte = new Date(fromDate);
-      if (toDate) query.dueDate.$lte = new Date(toDate);
-    }
-
-    const tasks = await Task.find(query)
-      .sort({ dueDate: 1, createdAt: -1 });
-
-    res.json({
-      success: true,
-      data: tasks,
-      total: tasks.length,
-    });
-  } catch (error) {
-    console.error('Get farm tasks error:', error);
-    res.status(500).json({ message: 'Failed to fetch tasks', error: error.message });
-  }
-});
-
-app.put('/api/tasks/update/:taskId', authenticateToken, async (req, res) => {
-  try {
-    if (req.user.role !== 'farmer') {
-      return res.status(403).json({ message: 'Only farmers can update tasks' });
-    }
-
-    const task = await Task.findOne({
-      _id: req.params.taskId,
-      farmerId: req.user._id,
-    });
-
-    if (!task) {
-      return res.status(404).json({ message: 'Task not found' });
-    }
-
-    const {
-      title,
-      description,
-      category,
-      priority,
-      dueDate,
-      status,
-      notes,
-      reminderAt,
-    } = req.body || {};
-
-    if (title !== undefined) task.title = String(title).trim();
-    if (description !== undefined) task.description = String(description).trim();
-    if (category) task.category = category;
-    if (priority) task.priority = priority;
-    if (notes !== undefined) task.notes = String(notes).trim();
-    if (dueDate) {
-      const parsedDueDate = new Date(dueDate);
-      if (Number.isNaN(parsedDueDate.getTime())) {
-        return res.status(400).json({ message: 'Invalid dueDate value' });
-      }
-      task.dueDate = parsedDueDate;
-    }
-    if (reminderAt !== undefined) {
-      task.reminderAt = reminderAt ? new Date(reminderAt) : undefined;
-    }
-    if (status) {
-      task.status = status;
-      task.completedAt = status === 'completed' ? new Date() : undefined;
-    }
-
-    await task.save();
-
-    res.json({
-      success: true,
-      message: 'Task updated successfully',
-      data: task,
-    });
-  } catch (error) {
-    console.error('Update farm task error:', error);
-    res.status(500).json({ message: 'Failed to update task', error: error.message });
-  }
-});
-
-app.delete('/api/tasks/delete/:taskId', authenticateToken, async (req, res) => {
-  try {
-    if (req.user.role !== 'farmer') {
-      return res.status(403).json({ message: 'Only farmers can delete tasks' });
-    }
-
-    const task = await Task.findOneAndDelete({
-      _id: req.params.taskId,
-      farmerId: req.user._id,
-    });
-
-    if (!task) {
-      return res.status(404).json({ message: 'Task not found' });
-    }
-
-    res.json({
-      success: true,
-      message: 'Task deleted successfully',
-    });
-  } catch (error) {
-    console.error('Delete farm task error:', error);
-    res.status(500).json({ message: 'Failed to delete task', error: error.message });
   }
 });
 
@@ -2009,7 +1541,7 @@ app.post('/api/crops/add', authenticateToken, upload.array('images', 5), async (
       description: description || '',
       farmerId: req.user._id,
       farmerName: req.user.name,
-      farmerPhone: req.user.phone,
+      farmerPhone: req.user.phone || '',
       images,
       location: {
         address,
@@ -2079,6 +1611,7 @@ app.post('/api/proposals', authenticateToken, async (req, res) => {
       cropId,
       quantity,
       priceOffered,
+      price,
       message,
       proposedDeliveryDate,
       paymentTerms,
@@ -2090,8 +1623,18 @@ app.post('/api/proposals', authenticateToken, async (req, res) => {
     } = req.body;
 
     // Validation
-    if (!cropId || !quantity || !priceOffered || !proposedDeliveryDate) {
-      return res.status(400).json({ message: 'Required fields missing' });
+    const normalizedPriceOffered = priceOffered ?? price;
+
+    if (!cropId || !quantity || !normalizedPriceOffered || !proposedDeliveryDate) {
+      return res.status(400).json({
+        message: 'Required fields missing',
+        missing: {
+          cropId: !cropId,
+          quantity: !quantity,
+          priceOffered: !normalizedPriceOffered,
+          proposedDeliveryDate: !proposedDeliveryDate,
+        },
+      });
     }
 
     // Get crop details
@@ -2109,7 +1652,7 @@ app.post('/api/proposals', authenticateToken, async (req, res) => {
     }
 
     // Calculate total amount
-    const totalAmount = Number(quantity) * Number(priceOffered);
+    const totalAmount = Number(quantity) * Number(normalizedPriceOffered);
 
     // Create proposal
     const proposal = new Proposal({
@@ -2117,7 +1660,7 @@ app.post('/api/proposals', authenticateToken, async (req, res) => {
       farmerId: crop.farmerId,
       traderId: req.user._id,
       quantity: Number(quantity),
-      priceOffered: Number(priceOffered),
+      priceOffered: Number(normalizedPriceOffered),
       totalAmount,
       message: message || '',
       proposedDeliveryDate: new Date(proposedDeliveryDate),
@@ -2141,6 +1684,40 @@ app.post('/api/proposals', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Create proposal error:', error);
     res.status(500).json({ message: 'Failed to create proposal', error: error.message });
+  }
+});
+
+app.get('/api/proposals/stats', authenticateToken, async (req, res) => {
+  try {
+    const filter = {};
+
+    if (req.user.role === 'trader') {
+      filter.traderId = req.user._id;
+    } else if (req.user.role === 'farmer') {
+      filter.farmerId = req.user._id;
+    }
+
+    const [total, pending, accepted, rejected, withdrawn] = await Promise.all([
+      Proposal.countDocuments(filter),
+      Proposal.countDocuments({ ...filter, status: 'pending' }),
+      Proposal.countDocuments({ ...filter, status: 'accepted' }),
+      Proposal.countDocuments({ ...filter, status: 'rejected' }),
+      Proposal.countDocuments({ ...filter, status: 'withdrawn' }),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        total,
+        pending,
+        accepted,
+        rejected,
+        withdrawn,
+      },
+    });
+  } catch (error) {
+    console.error('Get proposal stats error:', error);
+    res.status(500).json({ message: 'Failed to fetch proposal stats', error: error.message });
   }
 });
 
@@ -2934,6 +2511,142 @@ app.get('/api/agreements/:orderId/export', authenticateToken, async (req, res) =
 
     if (!agreement) {
       return res.status(404).json({ message: 'Agreement not found' });
+    }
+
+    const acceptsHeader = (req.headers.accept || '').toLowerCase();
+    const requestedFormat = String(req.query.format || '').toLowerCase();
+    const shouldReturnPdf = requestedFormat === 'pdf' || acceptsHeader.includes('application/pdf');
+
+    if (shouldReturnPdf) {
+      const cropName = agreement.terms?.cropName || '-';
+      const quantityText = `${agreement.terms?.quantity || 0} ${agreement.terms?.unit || ''}`.trim();
+      const pricePerUnit = agreement.terms?.pricePerUnit || 0;
+      const totalAmount = agreement.terms?.totalAmount || agreement.orderId?.totalAmount || 0;
+      const paymentMethod = agreement.terms?.paymentMethod || '-';
+      const paymentReference = agreement.terms?.paymentReference || agreement.generatedAfterTransaction?.referenceNumber || '-';
+      const deliveryParts = [
+        agreement.terms?.deliveryAddress,
+        agreement.terms?.deliveryCity,
+        agreement.terms?.deliveryState,
+        agreement.terms?.deliveryPincode,
+      ].filter(Boolean);
+      const deliveryAddress = deliveryParts.join(', ') || 'Not specified';
+
+      const status = agreement.status || 'pending_farmer';
+      const statusTitle =
+        status === 'completed'
+          ? 'MUTUALLY SIGNED AGREEMENT - LEGALLY BINDING'
+          : status === 'pending_trader'
+            ? 'PENDING TRADER CONFIRMATION'
+            : status === 'pending_farmer'
+              ? 'PENDING FARMER CONFIRMATION'
+              : status === 'cancelled'
+                ? 'CANCELLED AGREEMENT'
+                : 'DRAFT AGREEMENT';
+
+      const fileName = `${agreement.documentNumber || agreement.orderId?.orderNumber || 'agreement'}.pdf`;
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      res.setHeader('Cache-Control', 'no-store');
+
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      doc.pipe(res);
+
+      doc.font('Helvetica-Bold').fontSize(17).text('AGRICULTURAL PRODUCE SALE AGREEMENT', { align: 'center' });
+      doc.moveDown(0.4);
+      doc.font('Helvetica-Bold').fontSize(10).fillColor('#2E7D32').text(statusTitle, { align: 'center' });
+      doc.fillColor('black');
+      doc.moveDown(0.6);
+      doc.font('Helvetica').fontSize(9).text('This agreement is generated electronically and is legally valid.', { align: 'center' });
+      doc.moveDown(0.6);
+      doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+      doc.moveDown(0.8);
+
+      doc.font('Helvetica').fontSize(11).text(`Agreement Date: ${new Date().toLocaleDateString('en-IN')}`);
+      doc.text(`Document Number: ${agreement.documentNumber || 'N/A'}`);
+      doc.text(`Order Number: ${agreement.orderId?.orderNumber || 'N/A'}`);
+      doc.moveDown(0.7);
+
+      doc.font('Helvetica-Bold').fontSize(12).text('1. PARTIES TO THE AGREEMENT');
+      doc.moveDown(0.4);
+      doc.font('Helvetica').fontSize(11).text('This agreement is entered into between the following parties:');
+      doc.moveDown(0.6);
+      doc.font('Helvetica-Bold').text('SELLER (Farmer)');
+      doc.font('Helvetica').text(`Name: ${agreement.farmerId?.name || 'N/A'}`);
+      doc.text(`Phone: ${agreement.farmerId?.phone || '-'}`);
+      doc.moveDown(0.5);
+      doc.font('Helvetica-Bold').text('BUYER (Trader)');
+      doc.font('Helvetica').text(`Name: ${agreement.traderId?.name || 'N/A'}`);
+      doc.text(`Phone: ${agreement.traderId?.phone || '-'}`);
+      doc.moveDown(0.8);
+
+      doc.font('Helvetica-Bold').fontSize(12).text('2. PRODUCT DETAILS');
+      doc.moveDown(0.4);
+      doc.font('Helvetica').fontSize(11);
+      doc.text(`Crop: ${cropName}`);
+      doc.text(`Quantity: ${quantityText}`);
+      doc.text(`Price Per Unit: Rs. ${pricePerUnit}`);
+      doc.text(`Total Amount: Rs. ${totalAmount}`);
+      doc.moveDown(0.8);
+
+      doc.font('Helvetica-Bold').fontSize(12).text('3. PAYMENT TERMS');
+      doc.moveDown(0.4);
+      doc.font('Helvetica').fontSize(11);
+      doc.text(`Payment Method: ${paymentMethod}`);
+      doc.text(`Payment Reference: ${paymentReference}`);
+      doc.text(`Full Payment: Rs. ${totalAmount}`);
+      doc.text('- To be paid at the time of dispatch/delivery');
+      doc.moveDown(0.8);
+
+      doc.font('Helvetica-Bold').fontSize(12).text('4. DELIVERY DETAILS');
+      doc.moveDown(0.4);
+      doc.font('Helvetica').fontSize(11);
+      doc.text(`Delivery Address: ${deliveryAddress}`);
+      doc.moveDown(0.8);
+
+      doc.font('Helvetica-Bold').fontSize(12).text('5. TERMS AND CONDITIONS');
+      doc.moveDown(0.4);
+      doc.font('Helvetica').fontSize(11);
+      doc.text('a) Farmer agrees to supply produce in agreed quantity and quality.');
+      doc.text('b) Full payment to be made at the time of dispatch/delivery.');
+      doc.text('c) Disputes shall be resolved mutually in good faith.');
+      doc.moveDown(0.9);
+
+      doc.font('Helvetica-Bold').fontSize(12).text('6. DIGITAL SIGNATURES');
+      doc.moveDown(0.6);
+
+      const sigTop = doc.y;
+      const boxHeight = 60;
+      const leftBoxX = 50;
+      const rightBoxX = 305;
+      const boxWidth = 240;
+
+      doc.rect(leftBoxX, sigTop, boxWidth, boxHeight).stroke();
+      doc.rect(rightBoxX, sigTop, boxWidth, boxHeight).stroke();
+
+      doc.font('Helvetica-Bold').fontSize(10).text('FARMER (SELLER)', leftBoxX + 8, sigTop + 8);
+      if (agreement.farmerSignature?.signed) {
+        doc.font('Helvetica').fontSize(11).text(agreement.farmerSignature?.digitalSignature || agreement.farmerId?.name || 'Farmer', leftBoxX + 8, sigTop + 26);
+        doc.fontSize(9).text(`Signed: ${new Date(agreement.farmerSignature?.signedAt || Date.now()).toLocaleString('en-IN')}`, leftBoxX + 8, sigTop + 42);
+      } else {
+        doc.font('Helvetica').fontSize(10).text('[ Pending Signature ]', leftBoxX + 8, sigTop + 30);
+      }
+
+      doc.font('Helvetica-Bold').fontSize(10).text('TRADER (BUYER)', rightBoxX + 8, sigTop + 8);
+      if (agreement.traderSignature?.signed) {
+        doc.font('Helvetica').fontSize(11).text(agreement.traderSignature?.digitalSignature || agreement.traderId?.name || 'Trader', rightBoxX + 8, sigTop + 26);
+        doc.fontSize(9).text(`Signed: ${new Date(agreement.traderSignature?.signedAt || Date.now()).toLocaleString('en-IN')}`, rightBoxX + 8, sigTop + 42);
+      } else {
+        doc.font('Helvetica').fontSize(10).text('[ Pending Signature ]', rightBoxX + 8, sigTop + 30);
+      }
+
+      doc.moveDown(6);
+      doc.font('Helvetica-Oblique').fontSize(9).text('This is a system-generated document. Valid under the IT Act, 2000.', { align: 'center' });
+      doc.font('Helvetica').fontSize(9).text(`Generated on: ${new Date().toLocaleString('en-IN')} | Platform: FarmConnect`, { align: 'center' });
+
+      doc.end();
+      return;
     }
 
     const lines = [
@@ -4095,68 +3808,12 @@ const toKg = (value, unit = 'kg') => {
   return numericValue;
 };
 
-const DEFAULT_TRANSPORT_SCHEDULE = {
-  monday: { start: '09:00', end: '18:00', active: true },
-  tuesday: { start: '09:00', end: '18:00', active: true },
-  wednesday: { start: '09:00', end: '18:00', active: true },
-  thursday: { start: '09:00', end: '18:00', active: true },
-  friday: { start: '09:00', end: '18:00', active: true },
-  saturday: { start: '10:00', end: '15:00', active: true },
-  sunday: { start: '', end: '', active: false },
-};
-
-const getPaginationOptions = (query = {}, defaults = { page: 1, limit: 20, maxLimit: 100 }) => {
-  const page = Math.max(1, Number(query.page) || defaults.page || 1);
-  const limit = Math.min(
-    defaults.maxLimit || 100,
-    Math.max(1, Number(query.limit) || defaults.limit || 20)
-  );
-
-  return {
-    page,
-    limit,
-    skip: (page - 1) * limit,
-  };
-};
-
-const buildPaginationMeta = ({ page, limit, total }) => {
-  const pages = Math.max(1, Math.ceil(total / limit));
-
-  return {
-    page,
-    limit,
-    total,
-    pages,
-    hasMore: page < pages,
-  };
-};
-
-const normalizeTransportSchedule = (schedule = {}) => {
-  const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
-
-  return Object.keys(DEFAULT_TRANSPORT_SCHEDULE).reduce((acc, day) => {
-    const fallback = DEFAULT_TRANSPORT_SCHEDULE[day];
-    const incoming = schedule?.[day] || {};
-    const start = typeof incoming.start === 'string' && timeRegex.test(incoming.start) ? incoming.start : fallback.start;
-    const end = typeof incoming.end === 'string' && timeRegex.test(incoming.end) ? incoming.end : fallback.end;
-
-    acc[day] = {
-      start,
-      end,
-      active: incoming.active !== undefined ? Boolean(incoming.active) : fallback.active,
-    };
-
-    return acc;
-  }, {});
-};
-
 // Get available orders for transport assignment
 app.get('/api/transport/available', authenticateToken, async (req, res) => {
   try {
     if (!ensureTransportRole(req, res)) return;
 
     const { city, state } = req.query;
-    const { page, limit, skip } = getPaginationOptions(req.query, { page: 1, limit: 20, maxLimit: 100 });
     const filter = {
       status: 'ready_for_pickup',
       $or: [
@@ -4177,17 +3834,12 @@ app.get('/api/transport/available', authenticateToken, async (req, res) => {
       .populate('cropId', 'cropName category images')
       .populate('farmerId', 'name phone location')
       .populate('traderId', 'name phone location')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    const total = await Order.countDocuments(filter);
+      .sort({ createdAt: -1 });
 
     res.json({
       success: true,
       data: orders,
-      total,
-      pagination: buildPaginationMeta({ page, limit, total }),
+      total: orders.length,
     });
   } catch (error) {
     console.error('Get transport available orders error:', error);
@@ -4258,7 +3910,6 @@ app.get('/api/transport/my-deliveries', authenticateToken, async (req, res) => {
     if (!ensureTransportRole(req, res)) return;
 
     const { status = 'active' } = req.query;
-    const { page, limit, skip } = getPaginationOptions(req.query, { page: 1, limit: 20, maxLimit: 100 });
     const filter = {
       'transportDetails.driverId': req.user._id,
     };
@@ -4273,17 +3924,12 @@ app.get('/api/transport/my-deliveries', authenticateToken, async (req, res) => {
       .populate('cropId', 'cropName category images')
       .populate('farmerId', 'name phone location')
       .populate('traderId', 'name phone location')
-      .sort({ updatedAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    const total = await Order.countDocuments(filter);
+      .sort({ updatedAt: -1 });
 
     res.json({
       success: true,
       data: deliveries,
-      total,
-      pagination: buildPaginationMeta({ page, limit, total }),
+      total: deliveries.length,
     });
   } catch (error) {
     console.error('Get transport deliveries error:', error);
@@ -4296,143 +3942,23 @@ app.get('/api/transport/history', authenticateToken, async (req, res) => {
   try {
     if (!ensureTransportRole(req, res)) return;
 
-    const { page, limit, skip } = getPaginationOptions(req.query, { page: 1, limit: 20, maxLimit: 100 });
-
-    const filter = {
+    const history = await Order.find({
       'transportDetails.driverId': req.user._id,
       status: { $in: ['delivered', 'completed', 'cancelled'] },
-    };
-
-    const history = await Order.find(filter)
+    })
       .populate('cropId', 'cropName category images')
       .populate('farmerId', 'name phone location')
       .populate('traderId', 'name phone location')
-      .sort({ updatedAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    const total = await Order.countDocuments(filter);
+      .sort({ updatedAt: -1 });
 
     res.json({
       success: true,
       data: history,
-      total,
-      pagination: buildPaginationMeta({ page, limit, total }),
+      total: history.length,
     });
   } catch (error) {
     console.error('Get transport history error:', error);
     res.status(500).json({ message: 'Failed to fetch transport history', error: error.message });
-  }
-});
-
-// Get transporter weekly schedule
-app.get('/api/transport/schedule', authenticateToken, async (req, res) => {
-  try {
-    if (!ensureTransportRole(req, res)) return;
-
-    const user = await User.findById(req.user._id).select('transportSettings.schedule');
-    const schedule = normalizeTransportSchedule(user?.transportSettings?.schedule || DEFAULT_TRANSPORT_SCHEDULE);
-
-    res.json({
-      success: true,
-      data: schedule,
-    });
-  } catch (error) {
-    console.error('Get transport schedule error:', error);
-    res.status(500).json({ message: 'Failed to fetch schedule', error: error.message });
-  }
-});
-
-// Update transporter weekly schedule
-app.put('/api/transport/schedule', authenticateToken, async (req, res) => {
-  try {
-    if (!ensureTransportRole(req, res)) return;
-
-    const normalizedSchedule = normalizeTransportSchedule(req.body || {});
-
-    await User.findByIdAndUpdate(req.user._id, {
-      $set: {
-        'transportSettings.schedule': normalizedSchedule,
-        'transportSettings.updatedAt': new Date(),
-      },
-    });
-
-    res.json({
-      success: true,
-      message: 'Schedule updated successfully',
-      data: normalizedSchedule,
-    });
-  } catch (error) {
-    console.error('Update transport schedule error:', error);
-    res.status(500).json({ message: 'Failed to update schedule', error: error.message });
-  }
-});
-
-// Get support tickets created by transporter
-app.get('/api/transport/support/tickets', authenticateToken, async (req, res) => {
-  try {
-    if (!ensureTransportRole(req, res)) return;
-
-    const { page, limit, skip } = getPaginationOptions(req.query, { page: 1, limit: 20, maxLimit: 100 });
-    const user = await User.findById(req.user._id).select('transportSettings.supportTickets');
-    const tickets = Array.isArray(user?.transportSettings?.supportTickets)
-      ? user.transportSettings.supportTickets
-      : [];
-
-    const ordered = [...tickets].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    const paged = ordered.slice(skip, skip + limit);
-    const total = ordered.length;
-
-    res.json({
-      success: true,
-      data: paged,
-      total,
-      pagination: buildPaginationMeta({ page, limit, total }),
-    });
-  } catch (error) {
-    console.error('Get transport support tickets error:', error);
-    res.status(500).json({ message: 'Failed to fetch support tickets', error: error.message });
-  }
-});
-
-// Create support ticket by transporter
-app.post('/api/transport/support/tickets', authenticateToken, async (req, res) => {
-  try {
-    if (!ensureTransportRole(req, res)) return;
-
-    const subject = String(req.body?.subject || '').trim();
-    const message = String(req.body?.message || '').trim();
-
-    if (!subject || !message) {
-      return res.status(400).json({ message: 'subject and message are required' });
-    }
-
-    const supportTicket = {
-      subject,
-      message,
-      status: 'open',
-      createdAt: new Date(),
-    };
-
-    const updatedUser = await User.findByIdAndUpdate(
-      req.user._id,
-      {
-        $push: { 'transportSettings.supportTickets': supportTicket },
-        $set: { 'transportSettings.updatedAt': new Date() },
-      },
-      { new: true, projection: { 'transportSettings.supportTickets': 1 } }
-    );
-
-    const created = updatedUser?.transportSettings?.supportTickets?.slice(-1)?.[0] || supportTicket;
-
-    res.status(201).json({
-      success: true,
-      message: 'Support ticket submitted successfully',
-      data: created,
-    });
-  } catch (error) {
-    console.error('Create transport support ticket error:', error);
-    res.status(500).json({ message: 'Failed to submit support ticket', error: error.message });
   }
 });
 
@@ -4620,25 +4146,15 @@ app.get('/api/vehicles/my-vehicles', authenticateToken, async (req, res) => {
   try {
     if (!ensureTransportRole(req, res)) return;
 
-    const { page, limit, skip } = getPaginationOptions(req.query, { page: 1, limit: 20, maxLimit: 100 });
-
-    const filter = {
+    const vehicles = await Vehicle.find({
       transporterId: req.user._id,
       isActive: true,
-    };
-
-    const vehicles = await Vehicle.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    const total = await Vehicle.countDocuments(filter);
+    }).sort({ createdAt: -1 });
 
     res.json({
       success: true,
       data: vehicles,
-      total,
-      pagination: buildPaginationMeta({ page, limit, total }),
+      total: vehicles.length,
     });
   } catch (error) {
     console.error('Get vehicles error:', error);
@@ -4798,31 +4314,22 @@ app.get('/api/vehicles/orders/available', authenticateToken, async (req, res) =>
   try {
     if (!ensureTransportRole(req, res)) return;
 
-    const { page, limit, skip } = getPaginationOptions(req.query, { page: 1, limit: 20, maxLimit: 100 });
-
-    const filter = {
+    const orders = await Order.find({
       status: 'ready_for_pickup',
       $or: [
         { 'transportDetails.driverId': { $exists: false } },
         { 'transportDetails.driverId': null },
       ],
-    };
-
-    const orders = await Order.find(filter)
+    })
       .populate('cropId', 'cropName category images')
       .populate('farmerId', 'name phone location')
       .populate('traderId', 'name phone location')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    const total = await Order.countDocuments(filter);
+      .sort({ createdAt: -1 });
 
     res.json({
       success: true,
       data: orders,
-      total,
-      pagination: buildPaginationMeta({ page, limit, total }),
+      total: orders.length,
     });
   } catch (error) {
     console.error('Get vehicle available orders error:', error);
@@ -4898,7 +4405,7 @@ app.use((err, req, res, next) => {
 });
 
 // 404 handler
-((req, res) => {
+app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
@@ -4926,8 +4433,8 @@ const start = async () => {
       }
     }
 
-    httpServer.listen(5001, '0.0.0.0', () => {
-      console.log('Server running on port 5001');
+    httpServer.listen(port, '0.0.0.0', () => {
+      console.log(`Server running on port ${port}`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);
@@ -4937,6 +4444,12 @@ const start = async () => {
 
 // Handle graceful shutdown
 process.on('SIGTERM', async () => {
+  console.log('Shutting down gracefully...');
+  await mongoose.connection.close();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
   console.log('Shutting down gracefully...');
   await mongoose.connection.close();
   process.exit(0);

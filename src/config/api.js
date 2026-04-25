@@ -3,18 +3,25 @@
  * Central configuration for API endpoints and URLs
  */
 
-// ============================================================
-// ⚠️  IMPORTANT: UPDATE THIS IP WHEN YOUR WIFI CHANGES! ⚠️
-// Run `ipconfig` in cmd and look for "IPv4 Address" under
-// your active WiFi adapter. Replace the IP below.
-// ============================================================
-// For Android emulator: use http://10.0.2.2:5050
-// For iOS simulator:    use http://localhost:5050
-// For physical device:  use your PC's LAN IP (e.g. 192.168.x.x)
+// Configure these with Expo env vars when available:
+// EXPO_PUBLIC_API_BASE_URL=https://your-domain/api
+// EXPO_PUBLIC_SOCKET_URL=https://your-domain
+const RAW_API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || '').trim();
+const RAW_SOCKET_URL = (process.env.EXPO_PUBLIC_SOCKET_URL || '').trim();
 
-export const API_BASE_URL = 'http://192.168.0.100:5001/api'; // <-- UPDATE THIS IP if WiFi changes (run ipconfig)
-// Socket.IO URL (same as API base, without /api)
-export const SOCKET_URL = 'http://192.168.0.100:5001'; // <-- UPDATE THIS IP if WiFi changes
+// Fixed local-network host for physical device testing.
+const DEFAULT_API_BASE_URL = 'http://192.168.0.100:5001/api';
+
+const normalizeUrl = (url) => url.replace(/\/+$/, '');
+
+export const API_BASE_URL = normalizeUrl(RAW_API_BASE_URL || DEFAULT_API_BASE_URL);
+export const SOCKET_URL = normalizeUrl(
+  RAW_SOCKET_URL || (API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL)
+);
+
+if (__DEV__) {
+  console.log('API_BASE_URL resolved to:', API_BASE_URL);
+}
 
 // API Endpoints
 export const API_ENDPOINTS = {
@@ -82,8 +89,6 @@ export const API_ENDPOINTS = {
     ACCEPT: (orderId) => `/transport/accept/${orderId}`,
     MY_DELIVERIES: '/transport/my-deliveries',
     HISTORY: '/transport/history',
-    SCHEDULE: '/transport/schedule',
-    SUPPORT_TICKETS: '/transport/support/tickets',
     STATUS: (deliveryId) => `/transport/status/${deliveryId}`,
     DETAILS: (deliveryId) => `/transport/details/${deliveryId}`,
     LOCATION_UPDATE: (deliveryId) => `/transport/location/${deliveryId}`,

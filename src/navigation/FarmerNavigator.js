@@ -7,6 +7,7 @@ import { Colors } from '../constants/colors';
 import FarmerDashboardScreen from '../screens/farmer/FarmerDashboardScreen';
 import MyCropsScreen from '../screens/farmer/MyCropsScreen';
 import AddCropScreen from '../screens/farmer/AddCropScreen';
+import CropDetailScreen from '../screens/trader/CropDetailScreen';
 import MyOrdersScreen from '../screens/farmer/MyOrdersScreen';
 import ReceivedProposalsScreen from '../screens/farmer/ReceivedProposalsScreen';
 import OrderDetailScreen from '../screens/common/OrderDetailScreen';
@@ -32,6 +33,7 @@ const FarmerHomeStack = () => {
       <Stack.Screen name="Dashboard" component={FarmerDashboardScreen} options={{ title: 'Farmer Dashboard' }} />
       <Stack.Screen name="AddCrop" component={AddCropScreen} options={{ title: 'Add New Crop' }} />
       <Stack.Screen name="MyCrops" component={MyCropsScreen} options={{ title: 'My Crops' }} />
+      <Stack.Screen name="CropDetail" component={CropDetailScreen} options={{ title: 'Crop Details' }} />
       <Stack.Screen name="MyOrders" component={MyOrdersScreen} options={{ title: 'My Orders' }} />
       <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={{ title: 'Order Details' }} />
       <Stack.Screen name="ReceivedProposals" component={ReceivedProposalsScreen} options={{ title: 'Proposals Received' }} />
@@ -55,6 +57,7 @@ const CropsStack = () => {
       }}>
       <Stack.Screen name="MyCropsList" component={MyCropsScreen} options={{ title: 'My Crops' }} />
       <Stack.Screen name="AddCrop" component={AddCropScreen} options={{ title: 'Add New Crop' }} />
+      <Stack.Screen name="CropDetail" component={CropDetailScreen} options={{ title: 'Crop Details' }} />
     </Stack.Navigator>
   );
 };

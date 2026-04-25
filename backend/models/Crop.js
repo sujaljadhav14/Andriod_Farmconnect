@@ -49,7 +49,7 @@ const cropSchema = new mongoose.Schema(
     },
     farmerPhone: {
       type: String,
-      required: true,
+      default: '',
     },
     images: {
       type: [String],

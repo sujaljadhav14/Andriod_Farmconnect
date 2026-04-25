@@ -1,5 +1,6 @@
 import apiService from './apiService';
-import { API_ENDPOINTS } from '../config/api';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api';
+import storageService from './storageService';
 
 class AgreementService {
     formatStatus(status) {
@@ -81,8 +82,20 @@ class AgreementService {
     }
 
     async exportAgreement(orderId) {
-        const response = await apiService.get(API_ENDPOINTS.AGREEMENTS.EXPORT(orderId));
-        return response?.data || response;
+        const token = await storageService.getToken();
+        const endpoint = API_ENDPOINTS.AGREEMENTS.EXPORT(orderId);
+        const url = `${API_BASE_URL}${endpoint}?format=pdf`;
+        const fileName = `agreement-${String(orderId).slice(-6)}.pdf`;
+
+        return {
+            fileName,
+            mimeType: 'application/pdf',
+            downloadUrl: url,
+            headers: {
+                Authorization: token ? `Bearer ${token}` : '',
+                Accept: 'application/pdf',
+            },
+        };
     }
 
     async signAsFarmer(orderId, payload = {}) {

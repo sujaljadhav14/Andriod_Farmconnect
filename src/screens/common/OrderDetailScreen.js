@@ -18,6 +18,8 @@ import {
   ActivityIndicator,
   Share,
 } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
@@ -255,13 +257,73 @@ const OrderDetailScreen = ({ route, navigation }) => {
 
     try {
       const exported = await agreementService.exportAgreement(order.id);
-      const message = exported?.content || agreement.documentBody || 'Agreement details unavailable';
-      const title = exported?.fileName || `${agreement.documentNumber || 'agreement'}.txt`;
+      const baseDirectory = FileSystem.cacheDirectory || FileSystem.documentDirectory;
 
-      await Share.share({
-        title,
-        message,
-      });
+      if (!baseDirectory) {
+        throw new Error('Unable to access device storage for export.');
+      }
+
+      const safeFileName = exported?.fileName || `${agreement.documentNumber || 'agreement'}.pdf`;
+      const localUri = `${baseDirectory}${safeFileName}`;
+
+      const downloadResult = await FileSystem.downloadAsync(
+        exported.downloadUrl,
+        localUri,
+        { headers: exported.headers || {} }
+      );
+
+      if (!downloadResult?.uri || (downloadResult?.status && downloadResult.status >= 400)) {
+        throw new Error('Failed to download agreement PDF');
+      }
+
+      const downloadedUri = downloadResult.uri;
+      const canUseNativeShare = await Sharing.isAvailableAsync();
+
+      Alert.alert(
+        'Agreement Ready',
+        `PDF saved successfully.\n${safeFileName}`,
+        [
+          {
+            text: 'Open',
+            onPress: async () => {
+              try {
+                await Linking.openURL(downloadedUri);
+              } catch (openError) {
+                if (canUseNativeShare) {
+                  await Sharing.shareAsync(downloadedUri, {
+                    mimeType: exported?.mimeType || 'application/pdf',
+                    dialogTitle: 'Open Agreement PDF',
+                    UTI: 'com.adobe.pdf',
+                  });
+                } else {
+                  await Share.share({
+                    title: safeFileName,
+                    message: `Agreement PDF downloaded: ${downloadedUri}`,
+                  });
+                }
+              }
+            },
+          },
+          {
+            text: 'Share',
+            onPress: async () => {
+              if (canUseNativeShare) {
+                await Sharing.shareAsync(downloadedUri, {
+                  mimeType: exported?.mimeType || 'application/pdf',
+                  dialogTitle: 'Share Agreement PDF',
+                  UTI: 'com.adobe.pdf',
+                });
+              } else {
+                await Share.share({
+                  title: safeFileName,
+                  message: `Agreement PDF downloaded: ${downloadedUri}`,
+                });
+              }
+            },
+          },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
     } catch (err) {
       Alert.alert('Error', err.message || 'Failed to export agreement');
     }

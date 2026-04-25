@@ -20,6 +20,7 @@ import { Colors } from '../../constants/colors';
 import cropService from '../../services/cropService';
 import { LoadingSpinner, StatusBadge } from '../../components/common';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import { useAuth } from '../../context/AuthContext';
 
 const getCategoryIcon = (category) => {
   switch (category) {
@@ -39,6 +40,7 @@ const getCategoryIcon = (category) => {
 };
 
 const CropDetailScreen = ({ route, navigation }) => {
+  const { user } = useAuth();
   const { cropId, crop: initialCrop } = route.params || {};
   const [crop, setCrop] = useState(initialCrop ? cropService.normalizeCrop(initialCrop) : null);
   const [loading, setLoading] = useState(!initialCrop);
@@ -83,6 +85,8 @@ const CropDetailScreen = ({ route, navigation }) => {
   const handleMakeProposal = () => {
     navigation.navigate('CreateProposal', { crop });
   };
+
+  const canMakeProposal = user?.role?.toLowerCase() === 'trader' && crop?.status === 'available';
 
   const handleContactFarmer = async () => {
     if (crop?.farmer?.phone) {
@@ -327,7 +331,7 @@ const CropDetailScreen = ({ route, navigation }) => {
         </View>
 
         {/* Action Buttons */}
-        {crop.status === 'available' && (
+        {canMakeProposal && (
           <View style={styles.actionContainer}>
             <TouchableOpacity style={styles.proposalButton} onPress={handleMakeProposal}>
               <MaterialIcons name="send" size={20} color="#FFFFFF" />

@@ -8,33 +8,51 @@ import apiService from './apiService';
 import { API_ENDPOINTS } from '../config/api';
 
 class ProposalService {
+  mapPaymentTerms(paymentTerms) {
+    switch (paymentTerms) {
+      case 'Advance Payment':
+        return 'advance';
+      case '50% Advance':
+        return 'partial';
+      case 'On Delivery':
+      case 'Credit (7 Days)':
+      case 'Credit (15 Days)':
+      default:
+        return 'on_delivery';
+    }
+  }
+
   /**
    * Create a new proposal for a crop
    */
   async createProposal(cropId, proposalData) {
-    // Calculate total amount
     const quantity = parseFloat(proposalData.proposedQuantity || proposalData.quantity || 0);
-    const price = parseFloat(proposalData.proposedPrice || proposalData.price || 0);
-    const totalAmount = quantity * price;
-
-    // Map delivery address to location object
-    const deliveryLocation = {
-      address: proposalData.deliveryAddress || '',
-      city: proposalData.city || '',
-      state: proposalData.state || '',
-      pincode: proposalData.pincode || '',
-    };
-
-    // Calculate proposed delivery date (7 days from today)
-    const proposedDeliveryDate = proposalData.proposedDeliveryDate 
+    const priceOffered = parseFloat(proposalData.proposedPrice || proposalData.priceOffered || proposalData.price || 0);
+    const proposedDeliveryDate = proposalData.proposedDeliveryDate
       ? new Date(proposalData.proposedDeliveryDate)
       : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const paymentTerms = this.mapPaymentTerms(proposalData.paymentTerms);
+    const totalAmount = quantity * priceOffered;
 
-    // Map frontend field names to backend field names
+    let advanceAmount = 0;
+    if (paymentTerms === 'advance') {
+      advanceAmount = totalAmount;
+    } else if (paymentTerms === 'partial') {
+      advanceAmount = totalAmount / 2;
+    }
+
     const backendData = {
       cropId,
       quantity,
-      price,
+      priceOffered,
+      message: proposalData.message?.trim() || '',
+      proposedDeliveryDate: proposedDeliveryDate.toISOString(),
+      paymentTerms,
+      advanceAmount,
+      deliveryAddress: proposalData.deliveryAddress || '',
+      deliveryCity: proposalData.city || '',
+      deliveryState: proposalData.state || '',
+      deliveryPincode: proposalData.pincode || '',
     };
     
     console.log('📦 Creating proposal with data:', backendData);
@@ -88,7 +106,7 @@ class ProposalService {
    */
   async rejectProposal(proposalId, reason) {
     const response = await apiService.patch(API_ENDPOINTS.PROPOSALS.REJECT(proposalId), {
-      rejectionReason: reason,
+      reason,
     });
     return response;
   }
@@ -129,14 +147,14 @@ class ProposalService {
         phone: proposal.farmerId.phone,
       } : null,
       proposedQuantity: proposal.proposedQuantity || proposal.quantity || 0,
-      proposedPrice: proposal.proposedPrice || proposal.pricePerUnit || 0,
-      totalAmount: proposal.totalAmount || (proposal.proposedQuantity * proposal.proposedPrice) || 0,
+      proposedPrice: proposal.proposedPrice || proposal.priceOffered || proposal.pricePerUnit || 0,
+      totalAmount: proposal.totalAmount || (proposal.quantity * proposal.priceOffered) || 0,
       message: proposal.message || '',
       status: proposal.status || 'Pending',
       rejectionReason: proposal.rejectionReason || '',
-      paymentTerms: proposal.paymentTerms || 'On Delivery',
-      deliveryDate: proposal.deliveryDate || proposal.expectedDeliveryDate,
-      deliveryAddress: proposal.deliveryAddress || '',
+      paymentTerms: proposal.paymentTerms || 'on_delivery',
+      deliveryDate: proposal.deliveryDate || proposal.proposedDeliveryDate || proposal.expectedDeliveryDate,
+      deliveryAddress: proposal.deliveryAddress || proposal.deliveryLocation?.address || '',
       createdAt: proposal.createdAt,
       updatedAt: proposal.updatedAt,
     };

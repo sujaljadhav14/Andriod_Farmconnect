@@ -11,6 +11,20 @@ class APIService {
   constructor() {
     this.baseURL = API_BASE_URL;
     this.timeout = API_TIMEOUT;
+    this.serverURL = API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL;
+  }
+
+  buildURL(endpoint = '') {
+    if (/^https?:\/\//i.test(endpoint)) {
+      return endpoint;
+    }
+
+    let normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    if (this.baseURL.endsWith('/api') && normalizedEndpoint.startsWith('/api/')) {
+      normalizedEndpoint = normalizedEndpoint.slice(4);
+    }
+
+    return `${this.baseURL}${normalizedEndpoint}`;
   }
 
   /**
@@ -132,8 +146,8 @@ class APIService {
    * Main request method
    */
   async request(endpoint, options = {}) {
-    console.log("🌐 API CALL:", this.baseURL + endpoint);
-    const url = `${this.baseURL}${endpoint}`;
+    const url = this.buildURL(endpoint);
+    console.log("🌐 API CALL:", url);
     const headers = await this.getHeaders(options.isMultipart);
 
     try {
@@ -149,7 +163,7 @@ class APIService {
       return await requestFn();
     } catch (error) {
       console.error(`API Error [${endpoint}]:`, {
-        url: `${this.baseURL}${endpoint}`,
+        url,
         method: options.method || 'GET',
         error: error.message,
         type: error.name,
@@ -162,7 +176,7 @@ class APIService {
         console.error('🚨 Network Error Details:', {
           baseURL: this.baseURL,
           endpoint,
-          fullURL: `${this.baseURL}${endpoint}`,
+          fullURL: url,
           isMultipart: options.isMultipart,
           hasFormData: options.body instanceof FormData
         });
@@ -225,9 +239,10 @@ class APIService {
    * Upload file (multipart/form-data)
    */
   async upload(endpoint, formData) {
+    const url = this.buildURL(endpoint);
     console.log('📤 Upload Request:', {
       endpoint,
-      url: `${this.baseURL}${endpoint}`,
+      url,
       formDataKeys: formData._parts ? formData._parts.map(part => part[0]) : 'No _parts found'
     });
 
@@ -243,9 +258,9 @@ class APIService {
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
       try {
-        console.log('🌐 Sending fetch request to:', `${this.baseURL}${endpoint}`);
+        console.log('🌐 Sending fetch request to:', url);
 
-        const response = await fetch(`${this.baseURL}${endpoint}`, {
+        const response = await fetch(url, {
           method: 'POST',
           body: formData,
           headers: {
@@ -309,7 +324,7 @@ class APIService {
    * Download file
    */
   async download(endpoint) {
-    const url = `${this.baseURL}${endpoint}`;
+    const url = this.buildURL(endpoint);
     const headers = await this.getHeaders();
 
     try {
@@ -333,13 +348,18 @@ class APIService {
    * Check if backend is reachable
    */
   async checkConnection() {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
     try {
-      const response = await fetch(`${this.baseURL}/health`, {
+      const response = await fetch(`${this.serverURL}/health`, {
         method: 'GET',
-        timeout: 5000,
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       return response.ok;
     } catch (error) {
+      clearTimeout(timeoutId);
       console.error('Connection check failed:', error);
       return false;
     }
@@ -353,10 +373,10 @@ class APIService {
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     try {
-      console.log(`🔍 Testing endpoint: ${method} ${this.baseURL}${endpoint}`);
-
+      const url = this.buildURL(endpoint);
+      console.log(`🔍 Testing endpoint: ${method} ${url}`);
       const headers = await this.getHeaders();
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
+      const response = await fetch(url, {
         method,
         headers,
         signal: controller.signal,

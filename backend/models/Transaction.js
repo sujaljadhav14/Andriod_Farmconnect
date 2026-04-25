@@ -69,7 +69,7 @@ const transactionSchema = new mongoose.Schema({
     timestamps: true,
 });
 
-transactionSchema.pre('save', function (next) {
+transactionSchema.pre('save', async function () {
     if (!this.referenceNumber && this.isNew) {
         const ts = Date.now().toString(36).toUpperCase();
         const random = Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -79,8 +79,6 @@ transactionSchema.pre('save', function (next) {
     if (this.status === 'completed' && !this.completedAt) {
         this.completedAt = new Date();
     }
-
-    next();
 });
 
 transactionSchema.index({ orderId: 1, createdAt: -1 });
