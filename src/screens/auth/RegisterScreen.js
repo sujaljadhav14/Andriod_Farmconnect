@@ -16,19 +16,21 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-import { Button, Input, LoadingSpinner } from '../../components/common';
+import { Button, Input, LoadingSpinner, LanguageSwitcher } from '../../components/common';
 import { Colors } from '../../constants/colors';
+import { useLanguage } from '../../context/LanguageContext';
 import { validatePhone, validatePassword, validateName } from '../../utils/validation';
 import { USER_ROLES } from '../../config/constants';
 
-const ROLES = [
-  { key: USER_ROLES.FARMER, label: 'Farmer', icon: 'agriculture', description: 'Sell your crops directly' },
-  { key: USER_ROLES.TRADER, label: 'Trader', icon: 'store', description: 'Buy crops from farmers' },
-  { key: USER_ROLES.TRANSPORT, label: 'Transport', icon: 'local-shipping', description: 'Deliver goods' },
-];
-
 const RegisterScreen = ({ navigation }) => {
   const { register, sendOTP, loading } = useAuth();
+  const { t } = useLanguage();
+
+  const roles = [
+    { key: USER_ROLES.FARMER, label: t('auth.farmer'), icon: 'agriculture', description: t('register.roles.farmer') },
+    { key: USER_ROLES.TRADER, label: t('auth.trader'), icon: 'store', description: t('register.roles.trader') },
+    { key: USER_ROLES.TRANSPORT, label: t('auth.transporter'), icon: 'local-shipping', description: t('register.roles.transport') },
+  ];
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -50,11 +52,11 @@ const RegisterScreen = ({ navigation }) => {
     if (!passwordResult.isValid) newErrors.password = passwordResult.error;
 
     if (password !== confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
+      newErrors.confirmPassword = t('validation.passwordMismatch');
     }
 
     if (!selectedRole) {
-      newErrors.role = 'Please select a role';
+      newErrors.role = t('register.selectRoleError');
     }
 
     setErrors(newErrors);
@@ -81,7 +83,7 @@ const RegisterScreen = ({ navigation }) => {
         navigation.navigate('OTPVerification', { phone, isNewUser: true });
       }
     } else {
-      setErrors({ general: result.error || 'Registration failed. Please try again.' });
+      setErrors({ general: result.error || t('register.failed') });
     }
   };
 
@@ -96,10 +98,12 @@ const RegisterScreen = ({ navigation }) => {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          <LanguageSwitcher style={styles.languageSwitcher} />
+
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Join FarmConnect to start trading</Text>
+            <Text style={styles.title}>{t('auth.createAccount')}</Text>
+            <Text style={styles.subtitle}>{t('register.subtitle')}</Text>
           </View>
 
           {/* Form */}
@@ -111,26 +115,26 @@ const RegisterScreen = ({ navigation }) => {
             )}
 
             <Input
-              label="Full Name"
+              label={t('auth.name')}
               value={name}
               onChangeText={(text) => {
                 setName(text);
                 setErrors({ ...errors, name: null, general: null });
               }}
-              placeholder="Enter your full name"
+              placeholder={t('auth.enterName')}
               autoCapitalize="words"
               icon="person"
               error={errors.name}
             />
 
             <Input
-              label="Phone Number"
+              label={t('auth.phoneNumber')}
               value={phone}
               onChangeText={(text) => {
                 setPhone(text.replace(/[^0-9]/g, ''));
                 setErrors({ ...errors, phone: null, general: null });
               }}
-              placeholder="Enter your phone number"
+              placeholder={t('auth.enterPhone')}
               keyboardType="phone-pad"
               maxLength={10}
               icon="phone"
@@ -138,26 +142,26 @@ const RegisterScreen = ({ navigation }) => {
             />
 
             <Input
-              label="Password"
+              label={t('auth.password')}
               value={password}
               onChangeText={(text) => {
                 setPassword(text);
                 setErrors({ ...errors, password: null, general: null });
               }}
-              placeholder="Create a password"
+              placeholder={t('auth.enterPassword')}
               secureTextEntry
               icon="lock"
               error={errors.password}
             />
 
             <Input
-              label="Confirm Password"
+              label={t('auth.confirmPassword')}
               value={confirmPassword}
               onChangeText={(text) => {
                 setConfirmPassword(text);
                 setErrors({ ...errors, confirmPassword: null, general: null });
               }}
-              placeholder="Confirm your password"
+              placeholder={t('auth.confirmPassword')}
               secureTextEntry
               icon="lock"
               error={errors.confirmPassword}
@@ -165,11 +169,11 @@ const RegisterScreen = ({ navigation }) => {
 
             {/* Role Selection */}
             <View style={styles.roleSection}>
-              <Text style={styles.roleLabel}>Select Your Role</Text>
+              <Text style={styles.roleLabel}>{t('auth.selectRole')}</Text>
               {errors.role && <Text style={styles.roleError}>{errors.role}</Text>}
 
               <View style={styles.roleContainer}>
-                {ROLES.map((role) => (
+                {roles.map((role) => (
                   <TouchableOpacity
                     key={role.key}
                     style={[
@@ -201,7 +205,7 @@ const RegisterScreen = ({ navigation }) => {
             </View>
 
             <Button
-              title="Register"
+              title={t('common.register')}
               onPress={handleRegister}
               loading={loading}
               fullWidth
@@ -211,15 +215,15 @@ const RegisterScreen = ({ navigation }) => {
 
           {/* Footer */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Already have an account? </Text>
+            <Text style={styles.footerText}>{t('auth.hasAccount')} </Text>
             <TouchableOpacity onPress={() => navigation.goBack()}>
-              <Text style={styles.footerLink}>Login</Text>
+              <Text style={styles.footerLink}>{t('common.login')}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <LoadingSpinner visible={loading} overlay text="Creating account..." />
+      <LoadingSpinner visible={loading} overlay text={t('auth.registering')} />
     </SafeAreaView>
   );
 };
@@ -235,6 +239,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: 24,
+  },
+  languageSwitcher: {
+    marginTop: 8,
   },
   header: {
     marginBottom: 24,

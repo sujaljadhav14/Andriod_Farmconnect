@@ -9,10 +9,13 @@ import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import OTPVerificationScreen from '../screens/auth/OTPVerificationScreen';
 import { Colors } from '../constants/colors';
+import { useLanguage } from '../context/LanguageContext';
 
 const Stack = createNativeStackNavigator();
 
 const AuthNavigator = () => {
+  const { t } = useLanguage();
+
   return (
     <Stack.Navigator
       screenOptions={{
@@ -33,12 +36,12 @@ const AuthNavigator = () => {
       <Stack.Screen
         name="Register"
         component={RegisterScreen}
-        options={{ title: 'Create Account' }}
+        options={{ title: t('auth.createAccount') }}
       />
       <Stack.Screen
         name="OTPVerification"
         component={OTPVerificationScreen}
-        options={{ title: 'Verify OTP' }}
+        options={{ title: t('auth.verifyOtp') }}
       />
     </Stack.Navigator>
   );

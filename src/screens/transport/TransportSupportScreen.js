@@ -14,6 +14,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import transportService from '../../services/transportService';
 import { formatDate } from '../../utils/formatters';
+import { useLanguage } from '../../context/LanguageContext';
 
 const HELPLINE = '+918655568655';
 const SUPPORT_EMAIL = 'transport.support@sudeshm.com';
@@ -36,22 +37,24 @@ const FAQS = [
   },
 ];
 
-const SUBJECTS = [
-  'Delivery Issue',
-  'Payment Inquiry',
-  'App Technical Issue',
-  'Other',
+const SUBJECT_KEYS = [
+  'deliveryIssue',
+  'paymentInquiry',
+  'appTechnicalIssue',
+  'other',
 ];
 
 const TransportSupportScreen = () => {
+  const { t } = useLanguage();
   const [expandedFaq, setExpandedFaq] = useState('faq-1');
-  const [subject, setSubject] = useState(SUBJECTS[0]);
+  const [subject, setSubject] = useState(SUBJECT_KEYS[0]);
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [loadingTickets, setLoadingTickets] = useState(true);
   const [tickets, setTickets] = useState([]);
 
   const messageLength = useMemo(() => message.trim().length, [message]);
+  const subjectLabel = t(`transporter.support.${subject}`);
 
   const loadTickets = useCallback(async () => {
     try {
@@ -74,7 +77,7 @@ const TransportSupportScreen = () => {
     try {
       await Linking.openURL(`tel:${HELPLINE}`);
     } catch (error) {
-      Alert.alert('Unable to Call', 'Please check if calling is available on this device.');
+      Alert.alert(t('messages.error'), t('messages.tryAgain'));
     }
   };
 
@@ -82,29 +85,29 @@ const TransportSupportScreen = () => {
     try {
       await Linking.openURL(`mailto:${SUPPORT_EMAIL}`);
     } catch (error) {
-      Alert.alert('Unable to Open Email', 'Please configure an email app and try again.');
+      Alert.alert(t('messages.error'), t('messages.tryAgain'));
     }
   };
 
   const submitTicket = async () => {
     if (messageLength < 10) {
-      Alert.alert('Validation', 'Please describe your issue in at least 10 characters.');
+      Alert.alert(t('common.confirm'), t('transporter.support.minimumCharacters'));
       return;
     }
 
     try {
       setSubmitting(true);
-      const response = await transportService.createSupportTicket({ subject, message: message.trim() });
+      const response = await transportService.createSupportTicket({ subject: subjectLabel, message: message.trim() });
       const createdTicket = transportService.normalizeSupportTickets([response?.data || response])[0];
 
       if (createdTicket) {
         setTickets((prev) => [createdTicket, ...prev]);
       }
 
-      Alert.alert('Ticket Submitted', `Subject: ${subject}\n\nYour message has been recorded for support follow-up.`);
+      Alert.alert(t('transporter.support.ticketSubmittedTitle'), `${subjectLabel}\n\n${t('transporter.support.ticketSubmittedMessage')}`);
       setMessage('');
     } catch (error) {
-      Alert.alert('Submit Failed', error.message || 'Unable to submit support ticket.');
+      Alert.alert(t('messages.error'), error.message || t('transporter.support.submitFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -113,13 +116,13 @@ const TransportSupportScreen = () => {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.contactCard}>
-        <Text style={styles.cardTitle}>Contact Support</Text>
-        <Text style={styles.cardSubtitle}>Get help for delivery, vehicle, or app-related issues.</Text>
+        <Text style={styles.cardTitle}>{t('transporter.support.contactCardTitle')}</Text>
+        <Text style={styles.cardSubtitle}>{t('transporter.support.contactCardSubtitle')}</Text>
 
         <TouchableOpacity style={styles.contactRow} onPress={callSupport}>
           <MaterialIcons name="phone" size={20} color="#1565C0" />
           <View style={styles.contactBody}>
-            <Text style={styles.contactLabel}>Helpline</Text>
+            <Text style={styles.contactLabel}>{t('transporter.support.helpline')}</Text>
             <Text style={styles.contactValue}>{HELPLINE}</Text>
           </View>
           <MaterialIcons name="chevron-right" size={20} color={Colors.textSecondary} />
@@ -128,7 +131,7 @@ const TransportSupportScreen = () => {
         <TouchableOpacity style={styles.contactRow} onPress={emailSupport}>
           <MaterialIcons name="email" size={20} color="#1565C0" />
           <View style={styles.contactBody}>
-            <Text style={styles.contactLabel}>Email Support</Text>
+            <Text style={styles.contactLabel}>{t('transporter.support.emailSupport')}</Text>
             <Text style={styles.contactValue}>{SUPPORT_EMAIL}</Text>
           </View>
           <MaterialIcons name="chevron-right" size={20} color={Colors.textSecondary} />
@@ -136,11 +139,11 @@ const TransportSupportScreen = () => {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Send a Message</Text>
+        <Text style={styles.cardTitle}>{t('transporter.support.contactSupport')}</Text>
 
-        <Text style={styles.label}>Subject</Text>
+        <Text style={styles.label}>{t('transporter.support.subjects')}</Text>
         <View style={styles.subjectChips}>
-          {SUBJECTS.map((option) => {
+          {SUBJECT_KEYS.map((option) => {
             const selected = option === subject;
             return (
               <TouchableOpacity
@@ -148,51 +151,53 @@ const TransportSupportScreen = () => {
                 style={[styles.chip, selected && styles.chipActive]}
                 onPress={() => setSubject(option)}
               >
-                <Text style={[styles.chipText, selected && styles.chipTextActive]}>{option}</Text>
+                <Text style={[styles.chipText, selected && styles.chipTextActive]}>{t(`transporter.support.${option}`)}</Text>
               </TouchableOpacity>
             );
           })}
         </View>
 
-        <Text style={styles.label}>Message</Text>
+        <Text style={styles.label}>{t('transporter.support.messageLabel')}</Text>
         <TextInput
           style={styles.messageInput}
           value={message}
           onChangeText={setMessage}
           multiline
           numberOfLines={5}
-          placeholder="Describe your issue here"
+          placeholder={t('transporter.support.messagePlaceholder')}
           placeholderTextColor={Colors.textSecondary}
         />
 
         <View style={styles.formFooter}>
-          <Text style={styles.charCount}>{messageLength} characters</Text>
+          <Text style={styles.charCount}>{t('transporter.support.characters', { count: messageLength })}</Text>
           <TouchableOpacity
             style={[styles.submitBtn, submitting && styles.submitBtnDisabled]}
             onPress={submitTicket}
             disabled={submitting}
           >
-            <Text style={styles.submitBtnText}>{submitting ? 'Submitting...' : 'Submit Ticket'}</Text>
+            <Text style={styles.submitBtnText}>{submitting ? t('transporter.support.submitting') : t('transporter.support.submitTicket')}</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Recent Tickets</Text>
+        <Text style={styles.cardTitle}>{t('transporter.support.myTickets')}</Text>
         {loadingTickets ? (
           <View style={styles.ticketLoadingRow}>
             <ActivityIndicator size="small" color="#1565C0" />
-            <Text style={styles.ticketLoadingText}>Loading tickets...</Text>
+            <Text style={styles.ticketLoadingText}>{t('common.loading')}</Text>
           </View>
         ) : tickets.length === 0 ? (
-          <Text style={styles.ticketEmpty}>No support tickets submitted yet.</Text>
+          <Text style={styles.ticketEmpty}>{t('transporter.support.noTickets')}</Text>
         ) : (
           tickets.slice(0, 5).map((ticket) => (
             <View key={ticket.id || `${ticket.subject}-${ticket.createdAt}`} style={styles.ticketItem}>
               <View style={styles.ticketHeader}>
                 <Text style={styles.ticketSubject}>{ticket.subject}</Text>
                 <View style={[styles.ticketStatusBadge, ticket.status === 'closed' && styles.ticketStatusClosed]}>
-                  <Text style={styles.ticketStatusText}>{ticket.status === 'closed' ? 'Closed' : 'Open'}</Text>
+                  <Text style={styles.ticketStatusText}>
+                    {ticket.status === 'closed' ? t('transporter.support.ticketClosed') : t('transporter.support.ticketOpen')}
+                  </Text>
                 </View>
               </View>
               <Text style={styles.ticketMessage}>{ticket.message}</Text>
@@ -203,7 +208,7 @@ const TransportSupportScreen = () => {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>FAQ</Text>
+        <Text style={styles.cardTitle}>{t('transporter.support.faqTitle')}</Text>
         {FAQS.map((faq) => {
           const expanded = expandedFaq === faq.id;
           return (

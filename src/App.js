@@ -7,13 +7,15 @@ import AppNavigator from './navigation/AppNavigator';
 import AuthNavigator from './navigation/AuthNavigator';
 import { Colors } from './constants/colors';
 import { useAuth } from './context/AuthContext';
+import { useLanguage } from './context/LanguageContext';
 import LoadingSpinner from './components/common/LoadingSpinner';
 
 const AppContent = () => {
   const { isAuthenticated, initializing } = useAuth();
+  const { t } = useLanguage();
 
   if (initializing) {
-    return <LoadingSpinner visible={true} text="Initializing..." />;
+    return <LoadingSpinner visible={true} text={t('common.initializing')} />;
   }
 
   return (

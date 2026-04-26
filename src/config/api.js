@@ -3,21 +3,17 @@
  * Central configuration for API endpoints and URLs
  */
 
-// Configure these with Expo env vars when available:
-// EXPO_PUBLIC_API_BASE_URL=https://your-domain/api
-// EXPO_PUBLIC_SOCKET_URL=https://your-domain
+// Configure this with a single Expo env var using the dev machine LAN IP.
+// Do not use a virtual adapter IP such as VMware/Hyper-V host-only networks.
+// Example: EXPO_PUBLIC_API_BASE_URL=http://192.168.x.x:5001/api
 const RAW_API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || '').trim();
-const RAW_SOCKET_URL = (process.env.EXPO_PUBLIC_SOCKET_URL || '').trim();
-
-// Fixed local-network host for physical device testing.
-const DEFAULT_API_BASE_URL = 'http://192.168.0.100:5001/api';
 
 const normalizeUrl = (url) => url.replace(/\/+$/, '');
 
-export const API_BASE_URL = normalizeUrl(RAW_API_BASE_URL || DEFAULT_API_BASE_URL);
-export const SOCKET_URL = normalizeUrl(
-  RAW_SOCKET_URL || (API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL)
-);
+const API_FALLBACK_BASE_URL = 'http://192.168.0.100:5001/api';
+
+export const API_BASE_URL = normalizeUrl(RAW_API_BASE_URL || API_FALLBACK_BASE_URL);
+export const SOCKET_URL = normalizeUrl(API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL);
 
 if (__DEV__) {
   console.log('API_BASE_URL resolved to:', API_BASE_URL);

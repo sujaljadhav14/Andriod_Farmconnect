@@ -21,6 +21,7 @@ import { CROP_CATEGORIES, QUALITY_GRADES, CROP_UNITS } from '../../config/consta
 import { API_ENDPOINTS } from '../../config/api';
 import { formatDate } from '../../utils/formatters';
 import apiService from '../../services/apiService';
+import { useLanguage } from '../../context/LanguageContext';
 
 // Indian states list
 const INDIAN_STATES = [
@@ -42,6 +43,7 @@ const CROP_SUGGESTIONS = {
 };
 
 const AddCropScreen = ({ navigation, route }) => {
+  const { t } = useLanguage();
   const editCrop = route?.params?.editCrop;
   const isEditMode = !!editCrop;
 
@@ -285,14 +287,14 @@ const AddCropScreen = ({ navigation, route }) => {
         contentInsetAdjustmentBehavior="automatic"
       >
         {/* Crop Information Section */}
-        {renderSectionHeader('Crop Information', 'agriculture')}
+        {renderSectionHeader(t('farmer.crops.title'), 'agriculture')}
 
-        <Text style={styles.label}>Crop Name *</Text>
+        <Text style={styles.label}>{t('farmer.crops.cropName')}</Text>
         <TextInput
           style={[styles.input, errors.cropName && styles.inputError]}
           value={cropName}
           onChangeText={(text) => { setCropName(text); setErrors({ ...errors, cropName: null }); }}
-          placeholder="e.g. Wheat, Rice, Tomatoes"
+          placeholder={t('farmer.crops.enterCropName')}
           placeholderTextColor={Colors.textSecondary}
         />
         {renderError('cropName')}
@@ -315,7 +317,7 @@ const AddCropScreen = ({ navigation, route }) => {
           </View>
         )}
 
-        <Text style={styles.label}>Category *</Text>
+        <Text style={styles.label}>{t('farmer.crops.category')}</Text>
         <View style={styles.chipContainer}>
           {CROP_CATEGORIES.map((cat) => (
             <TouchableOpacity
@@ -331,21 +333,21 @@ const AddCropScreen = ({ navigation, route }) => {
         </View>
         {renderError('category')}
 
-        <Text style={styles.label}>Variety (Optional)</Text>
+        <Text style={styles.label}>{t('farmer.crops.variety')}</Text>
         <TextInput
           style={styles.input}
           value={variety}
           onChangeText={setVariety}
-          placeholder="e.g. Basmati, Hybrid"
+          placeholder={t('farmer.crops.enterVariety')}
           placeholderTextColor={Colors.textSecondary}
         />
 
-        <Text style={styles.label}>Description (Optional)</Text>
+        <Text style={styles.label}>{t('farmer.crops.description')}</Text>
         <TextInput
           style={[styles.input, styles.textArea]}
           value={description}
           onChangeText={(text) => setDescription(text.slice(0, 500))}
-          placeholder="Describe your crop quality, features, etc."
+          placeholder={t('farmer.crops.descriptionPlaceholder')}
           placeholderTextColor={Colors.textSecondary}
           multiline
           numberOfLines={4}
@@ -354,23 +356,23 @@ const AddCropScreen = ({ navigation, route }) => {
         <Text style={styles.charCount}>{description.length}/500</Text>
 
         {/* Quantity & Pricing Section */}
-        {renderSectionHeader('Quantity & Pricing', 'payments')}
+        {renderSectionHeader(t('farmer.crops.quantityAndPricing'), 'payments')}
 
         <View style={styles.row}>
           <View style={styles.flex2}>
-            <Text style={styles.label}>Quantity *</Text>
+            <Text style={styles.label}>{t('farmer.crops.quantity')}</Text>
             <TextInput
               style={[styles.input, errors.quantity && styles.inputError]}
               value={quantity}
               onChangeText={(text) => { setQuantity(text.replace(/[^0-9.]/g, '')); setErrors({ ...errors, quantity: null }); }}
-              placeholder="e.g. 500"
+              placeholder={t('farmer.crops.quantityPlaceholder')}
               keyboardType="decimal-pad"
               placeholderTextColor={Colors.textSecondary}
             />
             {renderError('quantity')}
           </View>
           <View style={styles.flex1}>
-            <Text style={styles.label}>Unit *</Text>
+            <Text style={styles.label}>{t('farmer.crops.unit')}</Text>
             <View style={styles.unitContainer}>
               {CROP_UNITS.slice(0, 3).map((u) => (
                 <TouchableOpacity
@@ -387,18 +389,18 @@ const AddCropScreen = ({ navigation, route }) => {
           </View>
         </View>
 
-        <Text style={styles.label}>Price per {unit} (₹) *</Text>
+        <Text style={styles.label}>{t('farmer.crops.pricePerUnit', { unit })}</Text>
         <TextInput
           style={[styles.input, errors.pricePerUnit && styles.inputError]}
           value={pricePerUnit}
           onChangeText={(text) => { setPricePerUnit(text.replace(/[^0-9.]/g, '')); setErrors({ ...errors, pricePerUnit: null }); }}
-          placeholder="e.g. 28"
+          placeholder={t('farmer.crops.pricePlaceholder')}
           keyboardType="decimal-pad"
           placeholderTextColor={Colors.textSecondary}
         />
         {renderError('pricePerUnit')}
 
-        <Text style={styles.label}>Quality Grade</Text>
+        <Text style={styles.label}>{t('farmer.crops.qualityGrade')}</Text>
         <View style={styles.chipContainer}>
           {QUALITY_GRADES.map((q) => (
             <TouchableOpacity
@@ -414,63 +416,63 @@ const AddCropScreen = ({ navigation, route }) => {
         </View>
 
         {/* Cultivation Details Section */}
-        {renderSectionHeader('Cultivation Details', 'calendar-today')}
+        {renderSectionHeader(t('farmer.crops.cultivationDetails'), 'calendar-today')}
 
-        <Text style={styles.label}>Land Under Cultivation (acres)</Text>
+        <Text style={styles.label}>{t('farmer.crops.landUnderCultivation')}</Text>
         <TextInput
           style={styles.input}
           value={landUnderCultivation}
           onChangeText={(text) => setLandUnderCultivation(text.replace(/[^0-9.]/g, ''))}
-          placeholder="e.g. 2.5"
+          placeholder={t('farmer.crops.landPlaceholder')}
           keyboardType="decimal-pad"
           placeholderTextColor={Colors.textSecondary}
         />
 
-        <Text style={styles.label}>Cultivation Date (Optional)</Text>
+        <Text style={styles.label}>{t('farmer.crops.cultivationDate')}</Text>
         <TouchableOpacity
           style={styles.dateInput}
           onPress={() => setShowCultivationPicker(true)}
         >
           <MaterialIcons name="event" size={20} color={Colors.textSecondary} />
           <Text style={[styles.dateText, !cultivationDate && styles.placeholderText]}>
-            {cultivationDate ? formatDate(cultivationDate) : 'Select cultivation date'}
+            {cultivationDate ? formatDate(cultivationDate) : t('farmer.crops.selectCultivationDate')}
           </Text>
         </TouchableOpacity>
 
-        <Text style={styles.label}>Expected Harvest Date *</Text>
+        <Text style={styles.label}>{t('farmer.crops.expectedHarvestDate')}</Text>
         <TouchableOpacity
           style={[styles.dateInput, errors.expectedHarvestDate && styles.inputError]}
           onPress={() => setShowHarvestPicker(true)}
         >
           <MaterialIcons name="event" size={20} color={Colors.textSecondary} />
           <Text style={[styles.dateText, !expectedHarvestDate && styles.placeholderText]}>
-            {expectedHarvestDate ? formatDate(expectedHarvestDate) : 'Select harvest date'}
+            {expectedHarvestDate ? formatDate(expectedHarvestDate) : t('farmer.crops.selectHarvestDate')}
           </Text>
         </TouchableOpacity>
         {renderError('expectedHarvestDate')}
 
         {/* Location Section */}
-        {renderSectionHeader('Location Details', 'location-on')}
+        {renderSectionHeader(t('farmer.crops.locationDetails'), 'location-on')}
 
         <View style={styles.row}>
           <View style={styles.flex1}>
-            <Text style={styles.label}>Village *</Text>
+            <Text style={styles.label}>{t('farmer.crops.village')}</Text>
             <TextInput
               style={[styles.input, errors.village && styles.inputError]}
               value={village}
               onChangeText={(text) => { setVillage(text); setErrors({ ...errors, village: null }); }}
-              placeholder="Village name"
+              placeholder={t('farmer.crops.enterVillage')}
               placeholderTextColor={Colors.textSecondary}
             />
             {renderError('village')}
           </View>
           <View style={styles.flex1}>
-            <Text style={styles.label}>Tehsil *</Text>
+            <Text style={styles.label}>{t('farmer.crops.tehsil')}</Text>
             <TextInput
               style={[styles.input, errors.tehsil && styles.inputError]}
               value={tehsil}
               onChangeText={(text) => { setTehsil(text); setErrors({ ...errors, tehsil: null }); }}
-              placeholder="Tehsil name"
+              placeholder={t('farmer.crops.enterTehsil')}
               placeholderTextColor={Colors.textSecondary}
             />
             {renderError('tehsil')}
@@ -479,23 +481,23 @@ const AddCropScreen = ({ navigation, route }) => {
 
         <View style={styles.row}>
           <View style={styles.flex1}>
-            <Text style={styles.label}>District *</Text>
+            <Text style={styles.label}>{t('farmer.crops.district')}</Text>
             <TextInput
               style={[styles.input, errors.district && styles.inputError]}
               value={district}
               onChangeText={(text) => { setDistrict(text); setErrors({ ...errors, district: null }); }}
-              placeholder="District name"
+              placeholder={t('farmer.crops.selectDistrict')}
               placeholderTextColor={Colors.textSecondary}
             />
             {renderError('district')}
           </View>
           <View style={styles.flex1}>
-            <Text style={styles.label}>Pincode *</Text>
+            <Text style={styles.label}>{t('farmer.crops.pincode')}</Text>
             <TextInput
               style={[styles.input, errors.pincode && styles.inputError]}
               value={pincode}
               onChangeText={(text) => { setPincode(text.replace(/[^0-9]/g, '').slice(0, 6)); setErrors({ ...errors, pincode: null }); }}
-              placeholder="6 digits"
+              placeholder={t('farmer.crops.enterPincode')}
               keyboardType="number-pad"
               maxLength={6}
               placeholderTextColor={Colors.textSecondary}
@@ -504,14 +506,14 @@ const AddCropScreen = ({ navigation, route }) => {
           </View>
         </View>
 
-        <Text style={styles.label}>State *</Text>
+        <Text style={styles.label}>{t('farmer.crops.state')}</Text>
         <TouchableOpacity
           style={[styles.dateInput, errors.state && styles.inputError]}
           onPress={() => setShowStatePicker(!showStatePicker)}
         >
           <MaterialIcons name="location-city" size={20} color={Colors.textSecondary} />
           <Text style={[styles.dateText, !state && styles.placeholderText]}>
-            {state || 'Select state'}
+            {state || t('farmer.crops.selectState')}
           </Text>
           <MaterialIcons name="arrow-drop-down" size={24} color={Colors.textSecondary} />
         </TouchableOpacity>
@@ -534,7 +536,7 @@ const AddCropScreen = ({ navigation, route }) => {
         )}
 
         {/* Image Section */}
-        {renderSectionHeader('Crop Image', 'photo-camera')}
+        {renderSectionHeader(t('farmer.crops.cropImage'), 'photo-camera')}
 
         {cropImage ? (
           <View style={styles.imagePreviewContainer}>
@@ -547,11 +549,11 @@ const AddCropScreen = ({ navigation, route }) => {
           <View style={styles.imagePickerContainer}>
             <TouchableOpacity style={styles.imagePickerBtn} onPress={handlePickImage}>
               <MaterialIcons name="photo-library" size={32} color={Colors.primary} />
-              <Text style={styles.imagePickerText}>Gallery</Text>
+              <Text style={styles.imagePickerText}>{t('messages.gallery')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.imagePickerBtn} onPress={handleTakePhoto}>
               <MaterialIcons name="camera-alt" size={32} color={Colors.primary} />
-              <Text style={styles.imagePickerText}>Camera</Text>
+              <Text style={styles.imagePickerText}>{t('messages.camera')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -567,7 +569,7 @@ const AddCropScreen = ({ navigation, route }) => {
         />
 
         <Button
-          title={isEditMode ? 'Update Crop' : 'Add Crop'}
+          title={isEditMode ? t('farmer.crops.updateCrop') : t('farmer.crops.addCrop')}
           onPress={handleSubmit}
           loading={submitting}
           icon={isEditMode ? 'save' : 'add-circle'}
@@ -608,7 +610,7 @@ const AddCropScreen = ({ navigation, route }) => {
         />
       )}
 
-      <LoadingSpinner visible={submitting} overlay text={isEditMode ? 'Updating...' : 'Adding crop...'} />
+      <LoadingSpinner visible={submitting} overlay text={isEditMode ? t('farmer.crops.uploading') : t('farmer.crops.savingCrop')} />
     </KeyboardAvoidingView>
   );
 };

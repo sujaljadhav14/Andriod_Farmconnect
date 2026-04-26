@@ -19,12 +19,13 @@ import {
 import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
+import { useLanguage } from '../../context/LanguageContext';
 import cropService from '../../services/cropService';
 import { LoadingSpinner, StatusBadge } from '../../components/common';
 import { formatCurrency } from '../../utils/formatters';
 import { CROP_CATEGORIES, QUALITY_GRADES } from '../../config/constants';
-const formatLocation = (location) => {
-  if (!location) return 'Location not available';
+const formatLocation = (location, t) => {
+  if (!location) return t('browse.locationNotAvailable');
 
   if (typeof location === 'object') {
     return `${location.address || ''}, ${location.city || ''}, ${location.state || ''}`;
@@ -51,6 +52,7 @@ const getCategoryIcon = (category) => {
 
 const BrowseCropsScreen = ({ navigation }) => {
   const isFocused = useIsFocused();
+  const { t } = useLanguage();
   const [crops, setCrops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -81,14 +83,14 @@ const BrowseCropsScreen = ({ navigation }) => {
       console.log('📦 Loading crops with filters:', apiFilters);
       const response = await cropService.getAvailableCrops(apiFilters);
       console.log('📦 Crops response:', response);
-      
+
       // Handle both response.crops and response.data
       const cropsData = response.crops || response.data || [];
       console.log('📦 Crops array:', cropsData);
-      
+
       const normalizedCrops = cropService.normalizeCrops(cropsData);
       console.log('📦 Normalized crops:', normalizedCrops);
-      
+
       setCrops(normalizedCrops);
     } catch (err) {
       console.error('❌ Failed to load crops:', err);
@@ -133,77 +135,80 @@ const BrowseCropsScreen = ({ navigation }) => {
   const hasActiveFilters = filters.category || filters.quality || filters.minPrice || filters.maxPrice;
 
   const renderCrop = ({ item }) => (
-  <TouchableOpacity
-    style={styles.cropCard}
-    activeOpacity={0.7}
-    onPress={() => navigation.navigate('CropDetail', { cropId: item.id, crop: item })}
-  >
-    {/* Image */}
-    <View style={styles.imageContainer}>
-      {item.cropImage ? (
-        <Image source={{ uri: item.cropImage }} style={styles.cropImage} />
-      ) : (
-        <View style={styles.imagePlaceholder}>
-          <MaterialIcons name={getCategoryIcon(item.category)} size={32} color={Colors.textSecondary} />
-        </View>
-      )}
-      <StatusBadge status={item.status} size="small" style={styles.statusBadge} />
-    </View>
-
-    {/* Content */}
-    <View style={styles.cropContent}>
-
-      {/* Header */}
-      <View style={styles.cropHeader}>
-        <View style={styles.cropTitleContainer}>
-          <Text style={styles.cropName} numberOfLines={1}>{item.cropName}</Text>
-          {item.variety && (
-            <Text style={styles.cropVariety} numberOfLines={1}>({item.variety})</Text>
-          )}
-        </View>
-        <Text style={styles.cropPrice}>
-          {formatCurrency(item.pricePerUnit)}/{item.unit}
-        </Text>
+    <TouchableOpacity
+      style={styles.cropCard}
+      activeOpacity={0.7}
+      onPress={() => navigation.navigate('CropDetail', { cropId: item.id, crop: item })}
+    >
+      {/* Image */}
+      <View style={styles.imageContainer}>
+        {item.cropImage ? (
+          <Image source={{ uri: item.cropImage }} style={styles.cropImage} />
+        ) : (
+          <View style={styles.imagePlaceholder}>
+            <MaterialIcons name={getCategoryIcon(item.category)} size={32} color={Colors.textSecondary} />
+          </View>
+        )}
+        <StatusBadge status={item.status} size="small" style={styles.statusBadge} />
       </View>
 
-      {/* Farmer */}
-      {item.farmer && (
-        <View style={styles.farmerInfo}>
-          <MaterialIcons name="person" size={14} color={Colors.textSecondary} />
-          <Text style={styles.farmerName} numberOfLines={1}>
-            {item.farmer.name || 'Farmer'}
+      {/* Content */}
+      <View style={styles.cropContent}>
+
+        {/* Header */}
+        <View style={styles.cropHeader}>
+          <View style={styles.cropTitleContainer}>
+            <Text style={styles.cropName} numberOfLines={1}>{item.cropName}</Text>
+            {item.variety && (
+              <Text style={styles.cropVariety} numberOfLines={1}>({item.variety})</Text>
+            )}
+          </View>
+          <Text style={styles.cropPrice}>
+            {formatCurrency(item.pricePerUnit)}/{item.unit}
           </Text>
         </View>
-      )}
 
-      {/* Location */}
-      <View style={styles.locationInfo}>
-        <MaterialIcons name="location-on" size={14} color={Colors.textSecondary} />
-        <Text style={styles.locationText} numberOfLines={1}>
-          {item.locationDetails?.district ||
-            (typeof item.location === 'object'
-              ? `${item.location?.city || ''}, ${item.location?.state || ''}`
-              : item.location || 'Location not available')}
-          {item.locationDetails?.state && `, ${item.locationDetails.state}`}
-        </Text>
-      </View>
+        {/* Farmer */}
+        {item.farmer && (
+          <View style={styles.farmerInfo}>
+            <MaterialIcons name="person" size={14} color={Colors.textSecondary} />
+            <Text style={styles.farmerName} numberOfLines={1}>
+              {item.farmer.name || t('auth.farmer')}
+            </Text>
+          </View>
+        )}
 
-      {/* Footer */}
-      <View style={styles.cropFooter}>
-        <View style={styles.tag}>
-          <Text style={styles.tagText}>{item.category}</Text>
+        {/* Location */}
+        <View style={styles.locationInfo}>
+          <MaterialIcons name="location-on" size={14} color={Colors.textSecondary} />
+          <Text style={styles.locationText} numberOfLines={1}>
+            {formatLocation(
+              item.locationDetails?.district ||
+              (typeof item.location === 'object'
+                ? `${item.location?.city || ''}, ${item.location?.state || ''}`
+                : item.location),
+              t
+            )}
+            {item.locationDetails?.state && `, ${item.locationDetails.state}`}
+          </Text>
         </View>
-        <View style={styles.tag}>
-          <Text style={styles.tagText}>Grade {item.quality}</Text>
-        </View>
-        <Text style={styles.qty}>
-          {item.availableQuantity || item.quantity} {item.unit}
-        </Text>
-      </View>
 
-    </View>
-  </TouchableOpacity>
-);
+        {/* Footer */}
+        <View style={styles.cropFooter}>
+          <View style={styles.tag}>
+            <Text style={styles.tagText}>{item.category}</Text>
+          </View>
+          <View style={styles.tag}>
+            <Text style={styles.tagText}>{t('browse.grade', { grade: item.quality })}</Text>
+          </View>
+          <Text style={styles.qty}>
+            {item.availableQuantity || item.quantity} {item.unit}
+          </Text>
+        </View>
+
+      </View>
+    </TouchableOpacity>
+  );
 
   const renderFilterModal = () => (
     <Modal
@@ -215,20 +220,20 @@ const BrowseCropsScreen = ({ navigation }) => {
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Filter Crops</Text>
+            <Text style={styles.modalTitle}>{t('browse.filterCrops')}</Text>
             <TouchableOpacity onPress={() => setShowFilters(false)}>
               <MaterialIcons name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
           </View>
 
           {/* Category Filter */}
-          <Text style={styles.filterLabel}>Category</Text>
+          <Text style={styles.filterLabel}>{t('farmer.crops.category')}</Text>
           <View style={styles.filterOptions}>
             <TouchableOpacity
               style={[styles.filterChip, !filters.category && styles.filterChipActive]}
               onPress={() => setFilters({ ...filters, category: '' })}
             >
-              <Text style={[styles.filterChipText, !filters.category && styles.filterChipTextActive]}>All</Text>
+              <Text style={[styles.filterChipText, !filters.category && styles.filterChipTextActive]}>{t('browse.all')}</Text>
             </TouchableOpacity>
             {CROP_CATEGORIES.map((cat) => (
               <TouchableOpacity
@@ -244,13 +249,13 @@ const BrowseCropsScreen = ({ navigation }) => {
           </View>
 
           {/* Quality Filter */}
-          <Text style={styles.filterLabel}>Quality Grade</Text>
+          <Text style={styles.filterLabel}>{t('farmer.crops.qualityGrade')}</Text>
           <View style={styles.filterOptions}>
             <TouchableOpacity
               style={[styles.filterChip, !filters.quality && styles.filterChipActive]}
               onPress={() => setFilters({ ...filters, quality: '' })}
             >
-              <Text style={[styles.filterChipText, !filters.quality && styles.filterChipTextActive]}>All</Text>
+              <Text style={[styles.filterChipText, !filters.quality && styles.filterChipTextActive]}>{t('browse.all')}</Text>
             </TouchableOpacity>
             {QUALITY_GRADES.map((grade) => (
               <TouchableOpacity
@@ -266,22 +271,22 @@ const BrowseCropsScreen = ({ navigation }) => {
           </View>
 
           {/* Price Range */}
-          <Text style={styles.filterLabel}>Price Range (₹/unit)</Text>
+          <Text style={styles.filterLabel}>{t('browse.priceRange')}</Text>
           <View style={styles.priceInputs}>
             <TextInput
               style={styles.priceInput}
               value={filters.minPrice}
               onChangeText={(text) => setFilters({ ...filters, minPrice: text.replace(/[^0-9]/g, '') })}
-              placeholder="Min"
+              placeholder={t('browse.minPrice')}
               placeholderTextColor={Colors.textSecondary}
               keyboardType="numeric"
             />
-            <Text style={styles.priceSeparator}>to</Text>
+            <Text style={styles.priceSeparator}>{t('browse.to')}</Text>
             <TextInput
               style={styles.priceInput}
               value={filters.maxPrice}
               onChangeText={(text) => setFilters({ ...filters, maxPrice: text.replace(/[^0-9]/g, '') })}
-              placeholder="Max"
+              placeholder={t('browse.maxPrice')}
               placeholderTextColor={Colors.textSecondary}
               keyboardType="numeric"
             />
@@ -290,10 +295,10 @@ const BrowseCropsScreen = ({ navigation }) => {
           {/* Action Buttons */}
           <View style={styles.modalActions}>
             <TouchableOpacity style={styles.clearButton} onPress={clearFilters}>
-              <Text style={styles.clearButtonText}>Clear All</Text>
+              <Text style={styles.clearButtonText}>{t('browse.clearAll')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.applyButton} onPress={applyFilters}>
-              <Text style={styles.applyButtonText}>Apply Filters</Text>
+              <Text style={styles.applyButtonText}>{t('browse.applyFilters')}</Text>
             </TouchableOpacity>
           </View>
         </View>

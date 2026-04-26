@@ -24,6 +24,7 @@ import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import orderService from '../../services/orderService';
 import agreementService from '../../services/agreementService';
 import { LoadingSpinner, StatusBadge } from '../../components/common';
@@ -48,6 +49,7 @@ const getCategoryIcon = (category) => {
 
 const OrderDetailScreen = ({ route, navigation }) => {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const isFocused = useIsFocused();
   const { orderId, order: initialOrder } = route.params || {};
 
@@ -78,7 +80,7 @@ const OrderDetailScreen = ({ route, navigation }) => {
       setAgreement(agreementData || null);
     } catch (err) {
       setAgreement(null);
-      setAgreementError(err.message || 'Failed to load agreement details');
+      setAgreementError(err.message || t('order.agreementError'));
     } finally {
       setAgreementLoading(false);
     }
@@ -97,7 +99,7 @@ const OrderDetailScreen = ({ route, navigation }) => {
       await loadAgreementDetails(normalizedOrder?.id, { allowMissing: true });
     } catch (err) {
       console.error('Failed to load order details:', err);
-      setError(err.message || 'Failed to load order details');
+      setError(err.message || t('order.error'));
       if (!order && initialOrder) {
         const fallbackOrder = orderService.normalizeOrder(initialOrder);
         setOrder(fallbackOrder);
@@ -123,19 +125,19 @@ const OrderDetailScreen = ({ route, navigation }) => {
   // Farmer Actions
   const handleMarkReady = () => {
     Alert.alert(
-      'Mark as Ready',
-      `Confirm that the crop is ready for pickup?\n\n${order.crop?.cropName}: ${order.quantity} ${order.unit}`,
+      t('order.markAsReady'),
+      `${t('order.confirmMarkReady')}?\n\n${order.crop?.cropName}: ${order.quantity} ${order.unit}`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Mark Ready',
+          text: t('order.markReady'),
           onPress: async () => {
             try {
               await orderService.markReady(order.id);
               setOrder({ ...order, status: 'Ready for Pickup' });
-              Alert.alert('Success', 'Order marked as ready for pickup.');
+              Alert.alert(t('common.success'), t('order.markReadySuccess'));
             } catch (err) {
-              Alert.alert('Error', err.message || 'Failed to update order status');
+              Alert.alert(t('common.error'), err.message || t('order.failedUpdateStatus'));
             }
           },
         },
@@ -146,21 +148,21 @@ const OrderDetailScreen = ({ route, navigation }) => {
   // Both Roles
   const handleCancelOrder = () => {
     Alert.alert(
-      'Cancel Order',
-      'Are you sure you want to cancel this order? This action cannot be undone.',
+      t('order.cancelOrder'),
+      t('order.cancelConfirmation'),
       [
-        { text: 'No', style: 'cancel' },
+        { text: t('common.no'), style: 'cancel' },
         {
-          text: 'Cancel Order',
+          text: t('order.cancelOrder'),
           style: 'destructive',
           onPress: async () => {
             try {
-              const reason = `Cancelled by ${isFarmer ? 'farmer' : 'trader'}`;
+              const reason = `${t('order.cancelledBy')} ${isFarmer ? t('register.farmerLabel') : t('register.traderLabel')}`;
               await orderService.cancelOrder(order.id, reason);
               setOrder({ ...order, status: 'Cancelled' });
-              Alert.alert('Order Cancelled', 'The order has been cancelled.');
+              Alert.alert(t('order.orderCancelled'), t('order.orderCancelledMessage'));
             } catch (err) {
-              Alert.alert('Error', err.message || 'Failed to cancel order');
+              Alert.alert(t('common.error'), err.message || t('order.failedCancel'));
             }
           },
         },
@@ -177,12 +179,12 @@ const OrderDetailScreen = ({ route, navigation }) => {
     if (!order?.id) return;
 
     Alert.alert(
-      'Sign Agreement',
-      'Confirm your legal agreement signature for this deal?',
+      t('order.signAgreement'),
+      t('order.confirmSignAgreement'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Sign as Farmer',
+          text: t('order.signAsFarmer'),
           onPress: async () => {
             try {
               await agreementService.signAsFarmer(order.id, {
@@ -190,9 +192,9 @@ const OrderDetailScreen = ({ route, navigation }) => {
                 acceptedTerms: true,
               });
               await loadOrderDetails(false);
-              Alert.alert('Agreement Signed', 'Farmer signature saved. Waiting for trader signature.');
+              Alert.alert(t('order.agreementSigned'), t('order.agreementSignedMessage'));
             } catch (err) {
-              Alert.alert('Error', err.message || 'Failed to sign agreement');
+              Alert.alert(t('common.error'), err.message || t('order.failedSignAgreement'));
             }
           },
         },
@@ -204,12 +206,12 @@ const OrderDetailScreen = ({ route, navigation }) => {
     if (!order?.id) return;
 
     Alert.alert(
-      'Sign Agreement',
-      'Confirm your legal agreement signature to finalize this deal?',
+      t('order.signAgreement'),
+      t('order.confirmSignAgreementTrader'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Sign as Trader',
+          text: t('order.signAsTrader'),
           onPress: async () => {
             try {
               await agreementService.signAsTrader(order.id, {
@@ -217,9 +219,9 @@ const OrderDetailScreen = ({ route, navigation }) => {
                 acceptedTerms: true,
               });
               await loadOrderDetails(false);
-              Alert.alert('Agreement Completed', 'Both parties have signed the legal agreement.');
+              Alert.alert(t('order.agreementCompleted'), t('order.bothPartiesSigned'));
             } catch (err) {
-              Alert.alert('Error', err.message || 'Failed to sign agreement');
+              Alert.alert(t('common.error'), err.message || t('order.failedSignAgreement'));
             }
           },
         },
@@ -231,20 +233,20 @@ const OrderDetailScreen = ({ route, navigation }) => {
     if (!order?.id) return;
 
     Alert.alert(
-      'Cancel Agreement',
-      'Are you sure you want to cancel this legal agreement?',
+      t('order.cancelAgreement'),
+      t('order.cancelAgreementConfirmation'),
       [
-        { text: 'No', style: 'cancel' },
+        { text: t('common.no'), style: 'cancel' },
         {
-          text: 'Cancel Agreement',
+          text: t('order.cancelAgreement'),
           style: 'destructive',
           onPress: async () => {
             try {
-              await agreementService.cancelAgreement(order.id, `Cancelled by ${user?.role || 'user'}`);
+              await agreementService.cancelAgreement(order.id, `${t('order.cancelledBy')} ${user?.role || 'user'}`);
               await loadOrderDetails(false);
-              Alert.alert('Agreement Cancelled', 'The legal agreement was cancelled successfully.');
+              Alert.alert(t('order.agreementCancelled'), t('order.agreementCancelledMessage'));
             } catch (err) {
-              Alert.alert('Error', err.message || 'Failed to cancel agreement');
+              Alert.alert(t('common.error'), err.message || t('order.failedCancelAgreement'));
             }
           },
         },
@@ -260,7 +262,7 @@ const OrderDetailScreen = ({ route, navigation }) => {
       const baseDirectory = FileSystem.cacheDirectory || FileSystem.documentDirectory;
 
       if (!baseDirectory) {
-        throw new Error('Unable to access device storage for export.');
+        throw new Error(t('order.exportStorageError'));
       }
 
       const safeFileName = exported?.fileName || `${agreement.documentNumber || 'agreement'}.pdf`;
@@ -273,18 +275,18 @@ const OrderDetailScreen = ({ route, navigation }) => {
       );
 
       if (!downloadResult?.uri || (downloadResult?.status && downloadResult.status >= 400)) {
-        throw new Error('Failed to download agreement PDF');
+        throw new Error(t('order.downloadAgreementError'));
       }
 
       const downloadedUri = downloadResult.uri;
       const canUseNativeShare = await Sharing.isAvailableAsync();
 
       Alert.alert(
-        'Agreement Ready',
-        `PDF saved successfully.\n${safeFileName}`,
+        t('order.agreementReady'),
+        `${t('order.pdfSavedSuccess')}\n${safeFileName}`,
         [
           {
-            text: 'Open',
+            text: t('messages.open'),
             onPress: async () => {
               try {
                 await Linking.openURL(downloadedUri);
@@ -292,7 +294,7 @@ const OrderDetailScreen = ({ route, navigation }) => {
                 if (canUseNativeShare) {
                   await Sharing.shareAsync(downloadedUri, {
                     mimeType: exported?.mimeType || 'application/pdf',
-                    dialogTitle: 'Open Agreement PDF',
+                    dialogTitle: t('order.openAgreementPdf'),
                     UTI: 'com.adobe.pdf',
                   });
                 } else {
@@ -305,12 +307,12 @@ const OrderDetailScreen = ({ route, navigation }) => {
             },
           },
           {
-            text: 'Share',
+            text: t('common.share'),
             onPress: async () => {
               if (canUseNativeShare) {
                 await Sharing.shareAsync(downloadedUri, {
                   mimeType: exported?.mimeType || 'application/pdf',
-                  dialogTitle: 'Share Agreement PDF',
+                  dialogTitle: t('order.shareAgreementPdf'),
                   UTI: 'com.adobe.pdf',
                 });
               } else {

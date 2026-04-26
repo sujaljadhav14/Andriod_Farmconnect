@@ -13,20 +13,20 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Image,
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
-import { Button, Input, LoadingSpinner } from '../../components/common';
+import { Button, Input, LoadingSpinner, LanguageSwitcher } from '../../components/common';
 import { Colors } from '../../constants/colors';
+import { useLanguage } from '../../context/LanguageContext';
 import { validatePhone, validatePassword } from '../../utils/validation';
 
 const LoginScreen = ({ navigation }) => {
   const { login, sendOTP, loading } = useAuth();
+  const { t } = useLanguage();
 
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
-  const [showPassword, setShowPassword] = useState(false);
 
   const validateForm = () => {
     const newErrors = {};
@@ -47,7 +47,7 @@ const LoginScreen = ({ navigation }) => {
   const result = await login(phone, password);
 
   if (!result.success) {
-    setErrors({ general: result.error || 'Login failed. Please try again.' });
+    setErrors({ general: result.error || t('auth.loginFailed') });
   }
 };
 
@@ -63,7 +63,7 @@ const LoginScreen = ({ navigation }) => {
     if (result.success) {
       navigation.navigate('OTPVerification', { phone });
     } else {
-      setErrors({ general: result.error || 'Failed to send OTP. Please try again.' });
+      setErrors({ general: result.error || t('auth.otpFailed') });
     }
   };
 
@@ -78,13 +78,15 @@ const LoginScreen = ({ navigation }) => {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          <LanguageSwitcher style={styles.languageSwitcher} />
+
           {/* Logo/Header */}
           <View style={styles.header}>
             <View style={styles.logoContainer}>
               <Text style={styles.logoText}>FC</Text>
             </View>
-            <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>Login to your FarmConnect account</Text>
+            <Text style={styles.title}>{t('auth.welcomeBack')}</Text>
+            <Text style={styles.subtitle}>{t('auth.loginTitle')}</Text>
           </View>
 
           {/* Form */}
@@ -96,13 +98,13 @@ const LoginScreen = ({ navigation }) => {
             )}
 
             <Input
-              label="Phone Number"
+              label={t('auth.phoneNumber')}
               value={phone}
               onChangeText={(text) => {
                 setPhone(text.replace(/[^0-9]/g, ''));
                 setErrors({ ...errors, phone: null, general: null });
               }}
-              placeholder="Enter your phone number"
+              placeholder={t('auth.enterPhone')}
               keyboardType="phone-pad"
               maxLength={10}
               icon="phone"
@@ -110,20 +112,20 @@ const LoginScreen = ({ navigation }) => {
             />
 
             <Input
-              label="Password"
+              label={t('auth.password')}
               value={password}
               onChangeText={(text) => {
                 setPassword(text);
                 setErrors({ ...errors, password: null, general: null });
               }}
-              placeholder="Enter your password"
+              placeholder={t('auth.enterPassword')}
               secureTextEntry
               icon="lock"
               error={errors.password}
             />
 
             <Button
-              title="Login"
+              title={t('common.login')}
               onPress={handleLogin}
               loading={loading}
               fullWidth
@@ -132,12 +134,12 @@ const LoginScreen = ({ navigation }) => {
 
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>OR</Text>
+              <Text style={styles.dividerText}>{t('common.or')}</Text>
               <View style={styles.dividerLine} />
             </View>
 
             <Button
-              title="Login with OTP"
+              title={t('auth.otpLogin')}
               onPress={handleOTPLogin}
               variant="outline"
               fullWidth
@@ -148,15 +150,15 @@ const LoginScreen = ({ navigation }) => {
 
           {/* Footer */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
+            <Text style={styles.footerText}>{t('auth.noAccount')} </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-              <Text style={styles.footerLink}>Register</Text>
+              <Text style={styles.footerLink}>{t('common.register')}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <LoadingSpinner visible={loading} overlay text="Logging in..." />
+      <LoadingSpinner visible={loading} overlay text={t('auth.loggingIn')} />
     </SafeAreaView>
   );
 };
@@ -172,6 +174,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: 24,
+  },
+  languageSwitcher: {
+    marginTop: 8,
   },
   header: {
     alignItems: 'center',

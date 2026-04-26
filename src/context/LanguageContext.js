@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import en from '../translations/en.json';
 import hi from '../translations/hi.json';
 import mr from '../translations/mr.json';
+import storageService from '../services/storageService';
 
 const LanguageContext = createContext();
 
@@ -10,6 +10,34 @@ const translations = {
     en,
     hi,
     mr,
+};
+
+const DEFAULT_LANGUAGE = 'en';
+const AVAILABLE_LANGUAGES = [
+    { code: 'en', label: 'English' },
+    { code: 'hi', label: 'Hindi' },
+    { code: 'mr', label: 'Marathi' },
+];
+
+const isSupportedLanguage = (languageCode) => AVAILABLE_LANGUAGES.some((item) => item.code === languageCode);
+
+const getDeviceLanguage = () => {
+    const locale = Intl.DateTimeFormat().resolvedOptions().locale || DEFAULT_LANGUAGE;
+    const normalized = locale.toLowerCase().split('-')[0];
+    return isSupportedLanguage(normalized) ? normalized : DEFAULT_LANGUAGE;
+};
+
+const getNestedValue = (source, keys) => {
+    let value = source;
+
+    for (const key of keys) {
+        value = value?.[key];
+        if (value === undefined) {
+            return undefined;
+        }
+    }
+
+    return value;
 };
 
 const interpolate = (value, params = {}) => {
@@ -26,7 +54,7 @@ const interpolate = (value, params = {}) => {
 };
 
 export const LanguageProvider = ({ children }) => {
-    const [language, setLanguage] = useState('en');
+    const [language, setLanguage] = useState(DEFAULT_LANGUAGE);
 
     useEffect(() => {
         loadLanguage();
@@ -34,18 +62,22 @@ export const LanguageProvider = ({ children }) => {
 
     const loadLanguage = async () => {
         try {
-            const saved = await AsyncStorage.getItem('language');
-            if (saved) {
-                setLanguage(saved);
-            }
+            const savedLanguage = await storageService.getLanguage();
+            const resolvedLanguage = isSupportedLanguage(savedLanguage) ? savedLanguage : getDeviceLanguage();
+            setLanguage(resolvedLanguage);
         } catch (error) {
             console.error('Error loading language:', error);
+            setLanguage(getDeviceLanguage());
         }
     };
 
     const changeLanguage = async (lang) => {
+        if (!isSupportedLanguage(lang)) {
+            return;
+        }
+
         try {
-            await AsyncStorage.setItem('language', lang);
+            await storageService.saveLanguage(lang);
             setLanguage(lang);
         } catch (error) {
             console.error('Error saving language:', error);
@@ -54,13 +86,12 @@ export const LanguageProvider = ({ children }) => {
 
     const t = (key, params = {}) => {
         const keys = key.split('.');
-        let value = translations[language] ?? translations.en;
+        const localizedValue = getNestedValue(translations[language] ?? translations[DEFAULT_LANGUAGE], keys);
+        const fallbackValue = getNestedValue(translations[DEFAULT_LANGUAGE], keys);
+        const value = localizedValue ?? fallbackValue;
 
-        for (const k of keys) {
-            value = value?.[k];
-            if (!value) {
-                return key; // Return key if translation not found
-            }
+        if (value === undefined) {
+            return key;
         }
 
         return interpolate(value, params) || key;
@@ -71,6 +102,7 @@ export const LanguageProvider = ({ children }) => {
             value={{
                 language,
                 changeLanguage,
+                availableLanguages: AVAILABLE_LANGUAGES,
                 t,
             }}>
             {children}

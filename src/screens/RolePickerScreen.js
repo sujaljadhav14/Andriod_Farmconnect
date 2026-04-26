@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -9,66 +9,70 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
-
-const roles = [
-  {
-    id: 'farmer',
-    title: 'Farmer',
-    subtitle: 'Manage crops, view orders & track earnings',
-    icon: 'agriculture',
-    color: '#2E7D32',
-    nav: 'FarmerMain',
-  },
-  {
-    id: 'trader',
-    title: 'Trader',
-    subtitle: 'Browse crops, place orders & make proposals',
-    icon: 'storefront',
-    color: '#E65100',
-    nav: 'TraderMain',
-  },
-  {
-    id: 'transport',
-    title: 'Transporter',
-    subtitle: 'Manage vehicles, accept deliveries & track routes',
-    icon: 'local-shipping',
-    color: '#1565C0',
-    nav: 'TransportMain',
-  },
-  {
-    id: 'admin',
-    title: 'Admin',
-    subtitle: 'Manage users, oversee operations and resolve disputes',
-    icon: 'admin-panel-settings',
-    color: '#512DA8',
-    nav: 'AdminMain',
-  },
-];
+import { useLanguage } from '../context/LanguageContext';
+import { LanguageSwitcher } from '../components/common';
 
 const RolePickerScreen = ({ navigation }) => {
+  const { t } = useLanguage();
+
+  const roles = [
+    {
+      id: 'farmer',
+      title: t('auth.farmer'),
+      subtitle: t('rolePicker.roles.farmer'),
+      icon: 'agriculture',
+      color: '#2E7D32',
+      nav: 'FarmerMain',
+    },
+    {
+      id: 'trader',
+      title: t('auth.trader'),
+      subtitle: t('rolePicker.roles.trader'),
+      icon: 'storefront',
+      color: '#E65100',
+      nav: 'TraderMain',
+    },
+    {
+      id: 'transport',
+      title: t('auth.transporter'),
+      subtitle: t('rolePicker.roles.transport'),
+      icon: 'local-shipping',
+      color: '#1565C0',
+      nav: 'TransportMain',
+    },
+    {
+      id: 'admin',
+      title: t('auth.admin'),
+      subtitle: t('rolePicker.roles.admin'),
+      icon: 'admin-panel-settings',
+      color: '#512DA8',
+      nav: 'AdminMain',
+    },
+  ];
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
+          <View style={styles.languageSwitcherWrap}>
+            <LanguageSwitcher compact />
+          </View>
           <MaterialIcons name="eco" size={48} color={Colors.white} />
-          <Text style={styles.title}>FarmConnect</Text>
-          <Text style={styles.subtitle}>
-            Connecting Farmers, Traders & Transporters
-          </Text>
+          <Text style={styles.title}>{t('home.title')}</Text>
+          <Text style={styles.subtitle}>{t('home.subtitle')}</Text>
         </View>
 
         <View style={styles.content}>
-          <Text style={styles.sectionTitle}>Choose your role to explore</Text>
-          <Text style={styles.sectionSubtitle}>
-            No login required - just pick a role to preview the app
-          </Text>
+          <Text style={styles.sectionTitle}>{t('rolePicker.title')}</Text>
+          <Text style={styles.sectionSubtitle}>{t('rolePicker.subtitle')}</Text>
 
           {roles.map((role) => (
             <TouchableOpacity
               key={role.id}
               style={[styles.roleCard, { borderLeftColor: role.color }]}
               onPress={() => navigation.navigate(role.nav)}
-              activeOpacity={0.7}>
+              activeOpacity={0.7}
+            >
               <View style={[styles.iconContainer, { backgroundColor: role.color }]}>
                 <MaterialIcons name={role.icon} size={32} color={Colors.white} />
               </View>
@@ -82,9 +86,7 @@ const RolePickerScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            Development Preview - Authentication Disabled
-          </Text>
+          <Text style={styles.footerText}>{t('rolePicker.footer')}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -101,12 +103,16 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: Colors.primary,
-    paddingTop: 60,
+    paddingTop: 32,
     paddingBottom: 40,
     paddingHorizontal: 24,
     alignItems: 'center',
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
+  },
+  languageSwitcherWrap: {
+    width: '100%',
+    marginBottom: 20,
   },
   title: {
     fontSize: 32,
@@ -184,4 +190,3 @@ const styles = StyleSheet.create({
 });
 
 export default RolePickerScreen;
-

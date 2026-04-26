@@ -15,22 +15,22 @@
 
 ---
 
-## Step 1 — Find Your Local IP (REQUIRED for physical device)
+## Step 1 — Set Your Local IP Once (RECOMMENDED for physical device)
 
 Open **Command Prompt** and run:
 ```
 ipconfig
 ```
-Look for **IPv4 Address** under your active WiFi adapter, e.g. `192.168.0.103`.
+Look for **IPv4 Address** under your active WiFi adapter, e.g. `192.168.145.1`.
 
-Then open `src/config/api.js` and update **both** lines:
-```js
-export const API_BASE_URL = 'http://YOUR_IP:5050'; // <-- UPDATE THIS
-export const SOCKET_URL   = 'http://YOUR_IP:5050'; // <-- UPDATE THIS
+Then create a root `.env` file and set:
+```env
+EXPO_PUBLIC_API_BASE_URL=http://192.168.145.1:YOUR_BACKEND_PORT/api
 ```
 
-> ⚠️ **Do this every time your IP changes** (e.g. reconnected to WiFi, different network).  
-> Your IP **will change** if you restart your router or connect to a different network.
+Expo reads this value automatically, so you do **not** need to edit `src/config/api.js` every time.
+
+> If your PC gets a new IP later, just update the `.env` file and restart Expo.
 
 ---
 
@@ -75,8 +75,10 @@ MongoDB connected
 Open a **separate terminal** in the project root:
 
 ```bash
-npx expo start
+npm start
 ```
+
+This runs Expo with cache cleared, which helps when you change the IP in `.env`.
 
 Then on your phone:
 1. Open the **Expo Go** app
@@ -103,7 +105,7 @@ Then on your phone:
 | `API Error [/api/auth/profile]: Route not found` | ~~Wrong endpoint~~ | ✅ Fixed — now uses `/api/auth/me` |
 | `Couldn't find screen named 'AdminMain'` | Admin navigator not built yet | ✅ Fixed — admin falls back to RolePicker |
 | `Socket connection error: websocket error` | Socket.IO server not implemented | ⏳ Non-fatal, ignore until Phase 9 |
-| `ECONNREFUSED` or `Network Error` | Backend not running OR wrong IP | Start backend & check your IP in `api.js` |
+| `ECONNREFUSED` or `Network Error` | Backend not running OR wrong IP/port | Start backend & update the IP and port in `.env` |
 | `MongoNetworkError` | MongoDB not running | Start MongoDB first |
 
 ---
@@ -119,7 +121,7 @@ Andriod_Farmconnect/
 │   └── uploads/          ← Uploaded images stored here
 ├── src/
 │   ├── config/
-│   │   ├── api.js        ← ⚠️ UPDATE IP HERE when WiFi changes
+	│   │   ├── api.js        ← Reads API URL from Expo env vars
 │   │   └── constants.js  ← App-wide constants
 │   ├── services/         ← API service layers
 │   ├── screens/          ← All UI screens
@@ -159,5 +161,5 @@ If the app doesn't connect to the backend on your phone:
 - [ ] Is MongoDB running? (`mongosh` or check Compass)
 - [ ] Is the backend running? (Terminal shows `Server running on port 5050`)
 - [ ] Is your phone on the **same WiFi** as your PC?
-- [ ] Did you update the IP in `src/config/api.js`? Run `ipconfig` to check.
+- [ ] Did you update the IP in `.env`? Run `ipconfig` to check.
 - [ ] Is port `5050` blocked by Windows Firewall? Try `http://YOUR_IP:5050/health` in phone browser.

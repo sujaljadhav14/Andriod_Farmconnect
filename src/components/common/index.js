@@ -8,3 +8,4 @@ export { default as Input } from './Input';
 export { default as Card } from './Card';
 export { default as LoadingSpinner } from './LoadingSpinner';
 export { default as StatusBadge } from './StatusBadge';
+export { default as LanguageSwitcher } from './LanguageSwitcher';

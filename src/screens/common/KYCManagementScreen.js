@@ -15,6 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { API_BASE_URL } from '../../config/api';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import authService from '../../services/authService';
 import uploadService from '../../services/uploadService';
 import Input from '../../components/common/Input';
@@ -78,6 +79,7 @@ const buildImageUrl = (path) => {
 const KYCManagementScreen = () => {
   const isFocused = useIsFocused();
   const { user, refreshUserProfile } = useAuth();
+  const { t } = useLanguage();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -253,7 +255,7 @@ const KYCManagementScreen = () => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Loading KYC details...</Text>
+        <Text style={styles.loadingText}>{t('kyc.loadingDetails')}</Text>
       </View>
     );
   }
@@ -264,34 +266,34 @@ const KYCManagementScreen = () => {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />}
       contentContainerStyle={styles.contentContainer}
     >
-      <View style={[styles.statusCard, { backgroundColor: currentStatusMeta.bg, borderColor: currentStatusMeta.border }]}> 
+      <View style={[styles.statusCard, { backgroundColor: currentStatusMeta.bg, borderColor: currentStatusMeta.border }]}>
         <MaterialIcons name={currentStatusMeta.icon} size={24} color={currentStatusMeta.text} />
         <View style={styles.statusTextWrap}>
           <Text style={[styles.statusLabel, { color: currentStatusMeta.text }]}>{currentStatusMeta.label}</Text>
           <Text style={styles.statusHint}>
             {kycStatus === 'approved'
-              ? 'Your verification is complete.'
+              ? t('kyc.statusHints.approved')
               : kycStatus === 'submitted'
-                ? 'Your verification details are being reviewed.'
+                ? t('kyc.statusHints.submitted')
                 : kycStatus === 'rejected'
-                  ? (kycDetails?.rejectionReason || 'Please update details and submit again.')
-                  : 'Submit your KYC details to unlock full platform actions.'}
+                  ? (kycDetails?.rejectionReason || t('kyc.statusHints.rejected'))
+                  : t('kyc.statusHints.notSubmitted')}
           </Text>
         </View>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Identity Details</Text>
+        <Text style={styles.cardTitle}>{t('kyc.identityDetails')}</Text>
 
         <Input
-          label="Full Name"
+          label={t('kyc.fullName')}
           value={form.fullName}
           onChangeText={(value) => setFormField('fullName', value)}
-          placeholder="Enter full name"
+          placeholder={t('kyc.enterFullName')}
           icon="person"
         />
 
-        <Text style={styles.inputLabel}>Document Type</Text>
+        <Text style={styles.inputLabel}>{t('kyc.documentType')}</Text>
         <View style={styles.chipsWrap}>
           {DOCUMENT_TYPES.map((document) => {
             const selected = form.documentType === document.value;
@@ -308,19 +310,19 @@ const KYCManagementScreen = () => {
         </View>
 
         <Input
-          label="Document Number"
+          label={t('kyc.documentNumber')}
           value={form.documentNumber}
           onChangeText={(value) => setFormField('documentNumber', value)}
-          placeholder="Enter document number"
+          placeholder={t('kyc.enterDocumentNumber')}
           autoCapitalize="characters"
           icon="badge"
         />
 
         <Input
-          label="Address"
+          label={t('kyc.address')}
           value={form.address}
           onChangeText={(value) => setFormField('address', value)}
-          placeholder="Address as per document"
+          placeholder={t('kyc.addressPlaceholder')}
           icon="location-on"
           multiline
           numberOfLines={3}
@@ -329,28 +331,28 @@ const KYCManagementScreen = () => {
         {isTrader && (
           <>
             <Input
-              label="Business Name"
+              label={t('kyc.businessName')}
               value={form.businessName}
               onChangeText={(value) => setFormField('businessName', value)}
-              placeholder="Enter business name"
+              placeholder={t('kyc.enterBusinessName')}
               icon="store"
             />
 
             <Input
-              label="Business Address"
+              label={t('kyc.businessAddress')}
               value={form.businessAddress}
               onChangeText={(value) => setFormField('businessAddress', value)}
-              placeholder="Enter business address"
+              placeholder={t('kyc.enterBusinessAddress')}
               icon="apartment"
               multiline
               numberOfLines={3}
             />
 
             <Input
-              label="GST Number (Optional)"
+              label={t('kyc.gstNumber')}
               value={form.gstNumber}
               onChangeText={(value) => setFormField('gstNumber', value)}
-              placeholder="Enter GST number"
+              placeholder={t('kyc.enterGstNumber')}
               autoCapitalize="characters"
               icon="receipt"
             />
@@ -358,10 +360,10 @@ const KYCManagementScreen = () => {
         )}
 
         <Input
-          label="Additional Notes (Optional)"
+          label={t('kyc.additionalNotes')}
           value={form.notes}
           onChangeText={(value) => setFormField('notes', value)}
-          placeholder="Any additional verification context"
+          placeholder={t('kyc.additionalNotesPlaceholder')}
           icon="notes"
           multiline
           numberOfLines={3}
@@ -369,7 +371,7 @@ const KYCManagementScreen = () => {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Upload ID Proof</Text>
+        <Text style={styles.cardTitle}>{t('kyc.uploadIdProof')}</Text>
 
         {idProofImage?.uri ? (
           <View style={styles.imagePreviewWrap}>
@@ -381,20 +383,20 @@ const KYCManagementScreen = () => {
         ) : (
           <View style={styles.emptyImageBox}>
             <MaterialIcons name="image" size={24} color={Colors.textSecondary} />
-            <Text style={styles.emptyImageText}>No document image selected</Text>
+            <Text style={styles.emptyImageText}>{t('kyc.noImageSelected')}</Text>
           </View>
         )}
 
         <View style={styles.uploadButtonsRow}>
           <Button
-            title="Gallery"
+            title={t('messages.gallery')}
             variant="outline"
             icon="photo-library"
             onPress={pickDocumentFromGallery}
             style={styles.halfButton}
           />
           <Button
-            title="Camera"
+            title={t('messages.camera')}
             variant="outline"
             icon="photo-camera"
             onPress={pickDocumentFromCamera}
@@ -403,32 +405,32 @@ const KYCManagementScreen = () => {
         </View>
 
         <Text style={styles.imageHelpText}>
-          Upload a clear photo of your selected identity document.
+          {t('kyc.uploadPhotoHint')}
         </Text>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Current Submission</Text>
+        <Text style={styles.cardTitle}>{t('kyc.currentSubmission')}</Text>
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Submitted On</Text>
+          <Text style={styles.summaryLabel}>{t('kyc.submittedOn')}</Text>
           <Text style={styles.summaryValue}>
-            {kycDetails?.submittedAt ? formatDate(kycDetails.submittedAt, 'datetime') : 'Not submitted'}
+            {kycDetails?.submittedAt ? formatDate(kycDetails.submittedAt, 'datetime') : t('kyc.notSubmitted')}
           </Text>
         </View>
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Reviewed On</Text>
+          <Text style={styles.summaryLabel}>{t('kyc.reviewedOn')}</Text>
           <Text style={styles.summaryValue}>
-            {kycDetails?.reviewedAt ? formatDate(kycDetails.reviewedAt, 'datetime') : 'Pending'}
+            {kycDetails?.reviewedAt ? formatDate(kycDetails.reviewedAt, 'datetime') : t('kyc.pending')}
           </Text>
         </View>
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Role</Text>
-          <Text style={styles.summaryValue}>{isTrader ? 'Trader' : 'Farmer'}</Text>
+          <Text style={styles.summaryLabel}>{t('common.role')}</Text>
+          <Text style={styles.summaryValue}>{isTrader ? t('register.traderLabel') : t('register.farmerLabel')}</Text>
         </View>
       </View>
 
       <Button
-        title={kycStatus === 'rejected' ? 'Resubmit KYC' : 'Submit KYC'}
+        title={kycStatus === 'rejected' ? t('kyc.resubmitKyc') : t('kyc.submitKyc')}
         icon="verified-user"
         onPress={submitKyc}
         loading={submitting}
