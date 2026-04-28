@@ -283,7 +283,20 @@
       "getHelp": "Get Help",
       "contactUs": "Contact Us",
       "phone": "Phone",
-      "supportHours": "Support Hours: 9 AM - 6 PM"
+      "supportHours": "Support Hours: 9 AM - 6 PM",
+      "welcomeLabel": "Welcome,",
+      "transportFeatures": "Transport Features",
+      "activeDeliveriesSection": "Active Deliveries",
+      "noActiveDeliveries": "No active deliveries right now.",
+      "pickup": "Pickup",
+      "destination": "Destination",
+      "failedToLoad": "Failed to load dashboard data",
+      "stats": {
+        "activeDeliveries": "Active Deliveries",
+        "completed": "Completed",
+        "vehicles": "Vehicles",
+        "earnings": "Earnings"
+      }
     },
     "orders": {
       "title": "Available Orders"

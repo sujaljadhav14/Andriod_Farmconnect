@@ -11,36 +11,33 @@ import { useIsFocused } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import transportService from '../../services/transportService';
 import vehicleService from '../../services/vehicleService';
 import { LoadingSpinner, StatusBadge } from '../../components/common';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
-const DASHBOARD_FEATURES = [
-  { key: 'available', title: 'Available Orders', icon: 'local-shipping', color: '#1565C0', screen: 'AvailableOrders' },
-  { key: 'deliveries', title: 'My Deliveries', icon: 'delivery-dining', color: '#2E7D32', screen: 'MyDeliveries' },
-  { key: 'kyc', title: 'KYC Verification', icon: 'badge', color: '#3949AB', screen: 'KYC' },
-  { key: 'history', title: 'Delivery History', icon: 'history', color: '#FB8C00', screen: 'DeliveryHistory' },
-  { key: 'routes', title: 'Route Planning', icon: 'map', color: '#00838F', screen: 'RoutePlanning' },
-  { key: 'earnings', title: 'Earnings', icon: 'account-balance-wallet', color: '#7B1FA2', screen: 'Earnings' },
-  { key: 'schedule', title: 'Schedule', icon: 'event-available', color: '#455A64', screen: 'Schedule' },
-  { key: 'vehicles', title: 'Vehicles', icon: 'directions-car', color: '#E65100', screen: 'Vehicles' },
-  { key: 'support', title: 'Support', icon: 'support-agent', color: '#0288D1', screen: 'Support' },
-];
-
 const TransportDashboardScreen = ({ navigation }) => {
   const isFocused = useIsFocused();
   const { user, logout } = useAuth();
+  const { t } = useLanguage();
+
+  const dashboardFeatures = [
+    { key: 'available', title: t('transporter.dashboard.availableOrders'), icon: 'local-shipping', color: '#1565C0', screen: 'AvailableOrders' },
+    { key: 'deliveries', title: t('transporter.dashboard.activeDeliveries'), icon: 'delivery-dining', color: '#2E7D32', screen: 'MyDeliveries' },
+    { key: 'kyc', title: t('transporter.dashboard.kycVerification'), icon: 'badge', color: '#3949AB', screen: 'KYC' },
+    { key: 'history', title: t('transporter.dashboard.deliveryHistory'), icon: 'history', color: '#FB8C00', screen: 'DeliveryHistory' },
+    { key: 'routes', title: t('transporter.dashboard.routePlanning'), icon: 'map', color: '#00838F', screen: 'RoutePlanning' },
+    { key: 'earnings', title: t('transporter.dashboard.earningsPayments'), icon: 'account-balance-wallet', color: '#7B1FA2', screen: 'Earnings' },
+    { key: 'schedule', title: t('transporter.dashboard.scheduleManagement'), icon: 'event-available', color: '#455A64', screen: 'Schedule' },
+    { key: 'vehicles', title: t('transporter.dashboard.vehicleManagement'), icon: 'directions-car', color: '#E65100', screen: 'Vehicles' },
+    { key: 'support', title: t('transporter.dashboard.supportHelp'), icon: 'support-agent', color: '#0288D1', screen: 'Support' },
+  ];
 
   const handleLogout = async () => {
     await logout();
   };
-  const [stats, setStats] = useState([
-    { key: 'active', label: 'Active Deliveries', value: '0', icon: 'local-shipping', color: '#1565C0' },
-    { key: 'completed', label: 'Completed', value: '0', icon: 'check-circle', color: '#2E7D32' },
-    { key: 'vehicles', label: 'Vehicles', value: '0', icon: 'directions-car', color: '#E65100' },
-    { key: 'earnings', label: 'Earnings', value: '0', icon: 'account-balance-wallet', color: '#6A1B9A' },
-  ]);
+  const [stats, setStats] = useState([]);
   const [activeDeliveries, setActiveDeliveries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -69,28 +66,28 @@ const TransportDashboardScreen = ({ navigation }) => {
       setStats([
         {
           key: 'active',
-          label: 'Active Deliveries',
+          label: t('transporter.dashboard.stats.activeDeliveries'),
           value: String(active.length),
           icon: 'local-shipping',
           color: '#1565C0',
         },
         {
           key: 'completed',
-          label: 'Completed',
+          label: t('transporter.dashboard.stats.completed'),
           value: String(history.filter((item) => ['delivered', 'completed'].includes((item.status || '').toLowerCase())).length),
           icon: 'check-circle',
           color: '#2E7D32',
         },
         {
           key: 'vehicles',
-          label: 'Vehicles',
+          label: t('transporter.dashboard.stats.vehicles'),
           value: String(vehicles.length),
           icon: 'directions-car',
           color: '#E65100',
         },
         {
           key: 'earnings',
-          label: 'Earnings',
+          label: t('transporter.dashboard.stats.earnings'),
           value: formatCurrency(totalEarnings),
           icon: 'account-balance-wallet',
           color: '#6A1B9A',
@@ -98,13 +95,13 @@ const TransportDashboardScreen = ({ navigation }) => {
       ]);
     } catch (err) {
       console.error('Failed to load transport dashboard:', err);
-      setError(err.message || 'Failed to load dashboard data');
+      setError(err.message || t('transporter.dashboard.failedToLoad'));
       setActiveDeliveries([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (isFocused) {
@@ -123,7 +120,7 @@ const TransportDashboardScreen = ({ navigation }) => {
   };
 
   if (loading) {
-    return <LoadingSpinner text="Loading dashboard..." />;
+    return <LoadingSpinner text={t('common.loading')} />;
   }
 
   return (
@@ -136,9 +133,9 @@ const TransportDashboardScreen = ({ navigation }) => {
       {/* Welcome Header */}
       <View style={styles.welcomeCard}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.welcomeText}>Welcome,</Text>
-          <Text style={styles.nameText}>{user?.name || 'Transporter'}</Text>
-          <Text style={styles.roleText}>Transport</Text>
+          <Text style={styles.welcomeText}>{t('transporter.dashboard.welcomeLabel')}</Text>
+          <Text style={styles.nameText}>{user?.name || t('auth.transporter')}</Text>
+          <Text style={styles.roleText}>{t('transporter.dashboard.title')}</Text>
         </View>
         <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
           <MaterialIcons name="power-settings-new" size={24} color="#FFFFFF" />
@@ -161,15 +158,15 @@ const TransportDashboardScreen = ({ navigation }) => {
           <MaterialIcons name="error-outline" size={18} color={Colors.error} />
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity onPress={() => loadDashboard()} style={styles.retryBtn}>
-            <Text style={styles.retryText}>Retry</Text>
+            <Text style={styles.retryText}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : null}
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Transport Features</Text>
+        <Text style={styles.sectionTitle}>{t('transporter.dashboard.transportFeatures')}</Text>
         <View style={styles.featureGrid}>
-          {DASHBOARD_FEATURES.map((feature) => (
+          {dashboardFeatures.map((feature) => (
             <TouchableOpacity
               key={feature.key}
               style={styles.featureCard}
@@ -186,11 +183,11 @@ const TransportDashboardScreen = ({ navigation }) => {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Active Deliveries</Text>
+        <Text style={styles.sectionTitle}>{t('transporter.dashboard.activeDeliveriesSection')}</Text>
         {activeDeliveries.length === 0 ? (
           <View style={styles.emptyCard}>
             <MaterialIcons name="inbox" size={28} color={Colors.textSecondary} />
-            <Text style={styles.emptyText}>No active deliveries right now.</Text>
+            <Text style={styles.emptyText}>{t('transporter.dashboard.noActiveDeliveries')}</Text>
           </View>
         ) : null}
 
@@ -204,12 +201,12 @@ const TransportDashboardScreen = ({ navigation }) => {
             <View style={styles.routeRow}>
               <View style={styles.routePoint}>
                 <MaterialIcons name="radio-button-checked" size={16} color="#2E7D32" />
-                <Text style={styles.routeText}>{delivery.pickupCity || 'Pickup'}</Text>
+                <Text style={styles.routeText}>{delivery.pickupCity || t('transporter.dashboard.pickup')}</Text>
               </View>
               <MaterialIcons name="arrow-forward" size={16} color={Colors.textSecondary} />
               <View style={styles.routePoint}>
                 <MaterialIcons name="location-on" size={16} color="#D32F2F" />
-                <Text style={styles.routeText}>{delivery.deliveryCity || 'Destination'}</Text>
+                <Text style={styles.routeText}>{delivery.deliveryCity || t('transporter.dashboard.destination')}</Text>
               </View>
             </View>
             <Text style={styles.deliveryCrop}>{delivery.cropName}</Text>

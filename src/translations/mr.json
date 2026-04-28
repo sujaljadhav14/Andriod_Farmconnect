@@ -283,7 +283,20 @@
       "getHelp": "मदत मिळवा",
       "contactUs": "आमच्याशी संपर्क साधा",
       "phone": "फोन",
-      "supportHours": "समर्थन वेळ: 9 AM - 6 PM"
+      "supportHours": "समर्थन वेळ: 9 AM - 6 PM",
+      "welcomeLabel": "स्वागत आहे,",
+      "transportFeatures": "वाहतूक सुविधा",
+      "activeDeliveriesSection": "सक्रिय डिलिव्हरी",
+      "noActiveDeliveries": "सध्या कोणतीही सक्रिय डिलिव्हरी नाही.",
+      "pickup": "पिकअप",
+      "destination": "गंतव्य",
+      "failedToLoad": "डॅशबोर्ड डेटा लोड करण्यात अयशस्वी",
+      "stats": {
+        "activeDeliveries": "सक्रिय डिलिव्हरी",
+        "completed": "पूर्ण",
+        "vehicles": "वाहने",
+        "earnings": "कमाई"
+      }
     },
     "orders": {
       "title": "उपलब्ध ऑर्डर"

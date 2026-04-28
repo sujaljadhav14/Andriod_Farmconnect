@@ -13,12 +13,12 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
 import { useLanguage } from '../context/LanguageContext';
 
-  const TransportDashboard = ({ navigation }) => {
+const TransportDashboard = ({ navigation }) => {
   const { t } = useLanguage();
-  const { logout } = useAuth(); 
+  const { logout } = useAuth();
   const handleLogout = async () => {
-  await logout();
-};
+    await logout();
+  };
   const [stats, setStats] = useState({
     activeDeliveries: 0,
     completedDeliveries: 0,
@@ -139,13 +139,13 @@ import { useLanguage } from '../context/LanguageContext';
           </Text>
         </View>
         <View style={{ flexDirection: 'row', gap: 12 }}>
-  <MaterialIcons name="notifications-none" size={28} color={Colors.white} />
-  
-  {/* 🔥 LOGOUT BUTTON */}
-  <TouchableOpacity onPress={handleLogout}>
-    <MaterialIcons name="power-settings-new" size={28} color={Colors.white} />
-  </TouchableOpacity>
-</View>
+          <MaterialIcons name="notifications-none" size={28} color={Colors.white} />
+
+          {/* 🔥 LOGOUT BUTTON */}
+          <TouchableOpacity onPress={handleLogout}>
+            <MaterialIcons name="power-settings-new" size={28} color={Colors.white} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Stats Grid */}
@@ -157,7 +157,7 @@ import { useLanguage } from '../context/LanguageContext';
           <Text style={styles.statValue}>
             {loading ? '...' : stats.activeDeliveries}
           </Text>
-          <Text style={styles.statLabel}>Active Deliveries</Text>
+          <Text style={styles.statLabel}>{t('transporter.dashboard.stats.activeDeliveries')}</Text>
         </View>
         <View style={styles.statCard}>
           <View style={[styles.statIcon, { backgroundColor: '#2E7D3215' }]}>
@@ -166,7 +166,7 @@ import { useLanguage } from '../context/LanguageContext';
           <Text style={styles.statValue}>
             {loading ? '...' : stats.completedDeliveries}
           </Text>
-          <Text style={styles.statLabel}>Completed</Text>
+          <Text style={styles.statLabel}>{t('transporter.dashboard.stats.completed')}</Text>
         </View>
         <View style={styles.statCard}>
           <View style={[styles.statIcon, { backgroundColor: '#E6510015' }]}>
@@ -175,18 +175,18 @@ import { useLanguage } from '../context/LanguageContext';
           <Text style={styles.statValue}>
             {loading ? '...' : stats.totalVehicles}
           </Text>
-          <Text style={styles.statLabel}>Vehicles</Text>
+          <Text style={styles.statLabel}>{t('transporter.dashboard.stats.vehicles')}</Text>
         </View>
         {false && (
-        <View style={styles.statCard}>
-          <View style={[styles.statIcon, { backgroundColor: '#6A1B9A15' }]}>
-            <MaterialIcons name="account-balance-wallet" size={24} color="#6A1B9A" />
+          <View style={styles.statCard}>
+            <View style={[styles.statIcon, { backgroundColor: '#6A1B9A15' }]}>
+              <MaterialIcons name="account-balance-wallet" size={24} color="#6A1B9A" />
+            </View>
+            <Text style={styles.statValue}>
+              {loading ? '...' : `₹${(stats.totalEarnings / 1000).toFixed(1)}K`}
+            </Text>
+            <Text style={styles.statLabel}>Earnings</Text>
           </View>
-          <Text style={styles.statValue}>
-            {loading ? '...' : `₹${(stats.totalEarnings / 1000).toFixed(1)}K`}
-          </Text>
-          <Text style={styles.statLabel}>Earnings</Text>
-        </View>
         )}
         <View style={styles.statCard}>
           <View style={[styles.statIcon, { backgroundColor: '#6A1B9A15' }]}>
@@ -195,7 +195,7 @@ import { useLanguage } from '../context/LanguageContext';
           <Text style={styles.statValue}>
             {loading ? '...' : `\u20B9${(stats.totalEarnings / 1000).toFixed(1)}K`}
           </Text>
-          <Text style={styles.statLabel}>Earnings</Text>
+          <Text style={styles.statLabel}>{t('transporter.dashboard.stats.earnings')}</Text>
         </View>
       </View>
 
@@ -225,20 +225,20 @@ import { useLanguage } from '../context/LanguageContext';
                 {feature.title === t('transporter.dashboard.availableOrders')
                   ? t('transporter.dashboard.viewOrders')
                   : feature.title === t('transporter.dashboard.activeDeliveries')
-                  ? t('transporter.dashboard.trackDeliveries')
-                  : feature.title === t('transporter.dashboard.kycVerification')
-                  ? t('transporter.dashboard.verifyKYC')
-                  : feature.title === t('transporter.dashboard.deliveryHistory')
-                  ? t('transporter.dashboard.viewHistory')
-                  : feature.title === t('transporter.dashboard.routePlanning')
-                  ? t('transporter.dashboard.planRoutes')
-                  : feature.title === t('transporter.dashboard.earningsPayments')
-                  ? t('transporter.dashboard.viewEarnings')
-                  : feature.title === t('transporter.dashboard.scheduleManagement')
-                  ? t('transporter.dashboard.manageSchedule')
-                  : feature.title === t('transporter.dashboard.vehicleManagement')
-                  ? t('transporter.dashboard.manageVehicles')
-                  : t('transporter.dashboard.getHelp')}
+                    ? t('transporter.dashboard.trackDeliveries')
+                    : feature.title === t('transporter.dashboard.kycVerification')
+                      ? t('transporter.dashboard.verifyKYC')
+                      : feature.title === t('transporter.dashboard.deliveryHistory')
+                        ? t('transporter.dashboard.viewHistory')
+                        : feature.title === t('transporter.dashboard.routePlanning')
+                          ? t('transporter.dashboard.planRoutes')
+                          : feature.title === t('transporter.dashboard.earningsPayments')
+                            ? t('transporter.dashboard.viewEarnings')
+                            : feature.title === t('transporter.dashboard.scheduleManagement')
+                              ? t('transporter.dashboard.manageSchedule')
+                              : feature.title === t('transporter.dashboard.vehicleManagement')
+                                ? t('transporter.dashboard.manageVehicles')
+                                : t('transporter.dashboard.getHelp')}
               </Text>
             </TouchableOpacity>
           </TouchableOpacity>
