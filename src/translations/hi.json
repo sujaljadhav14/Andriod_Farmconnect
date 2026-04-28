@@ -28,7 +28,8 @@
     "filter": "फ़िल्टर",
     "all": "सभी",
     "share": "साझा करें",
-    "initializing": "शुरू हो रहा है..."
+    "initializing": "शुरू हो रहा है...",
+    "close": "बंद करें"
   },
   "auth": {
     "phoneNumber": "फोन नंबर",
@@ -125,6 +126,8 @@
       "marketPrices": "बाजार मूल्य",
       "marketPricesDescription": "वर्तमान बाजार मूल्य देखें",
       "viewPrices": "मूल्य देखें",
+      "earningsAndPayments": "कमाई और भुगतान",
+      "earningsDescription": "प्राप्य, निपटान और कानूनी समझौतों को ट्रैक करें",
       "kycVerification": "KYC सत्यापन",
       "kycVerificationDescription": "अपना KYC सत्यापन पूरा करें",
       "verifyKYC": "KYC सत्यापित करें",
@@ -142,7 +145,15 @@
       "howToUsePlatform": "प्लेटफॉर्म का उपयोग कैसे करें",
       "contactUs": "हमसे संपर्क करें",
       "phone": "फोन",
-      "supportHours": "समर्थन घंटे: 9 AM - 6 PM"
+      "supportHours": "समर्थन घंटे: 9 AM - 6 PM",
+      "quickActions": "तेज़ कार्य",
+      "addCropQuickAction": "फसल जोड़ें",
+      "myCropsQuickAction": "मेरी फसलें",
+      "proposalsQuickAction": "प्रस्ताव",
+      "ordersQuickAction": "आदेश",
+      "pendingProposalsAlert": "आपके पास {{count}} नया प्रस्ताव है",
+      "videoPlaceholder": "वीडियो प्लेयर प्लेसहोल्डर",
+      "videoSubtextPlatform": "यहाँ YouTube वीडियो चलेगा"
     },
     "crops": {
       "addNew": "नई फसल जोड़ें",

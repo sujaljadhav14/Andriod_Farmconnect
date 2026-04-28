@@ -28,7 +28,8 @@
     "filter": "Filter",
     "all": "All",
     "share": "Share",
-    "initializing": "Initializing..."
+    "initializing": "Initializing...",
+    "close": "Close"
   },
   "auth": {
     "phoneNumber": "Phone Number",
@@ -125,6 +126,8 @@
       "marketPrices": "Market Prices",
       "marketPricesDescription": "View current market prices",
       "viewPrices": "View Prices",
+      "earningsAndPayments": "Earnings & Payments",
+      "earningsDescription": "Track receivables, settlements, and legal agreements",
       "kycVerification": "KYC Verification",
       "kycVerificationDescription": "Complete your KYC verification",
       "verifyKYC": "Verify KYC",
@@ -142,7 +145,15 @@
       "howToUsePlatform": "How to Use Platform",
       "contactUs": "Contact Us",
       "phone": "Phone",
-      "supportHours": "Support Hours: 9 AM - 6 PM"
+      "supportHours": "Support Hours: 9 AM - 6 PM",
+      "quickActions": "Quick Actions",
+      "addCropQuickAction": "Add Crop",
+      "myCropsQuickAction": "My Crops",
+      "proposalsQuickAction": "Proposals",
+      "ordersQuickAction": "Orders",
+      "pendingProposalsAlert": "You have {{count}} new proposal to review",
+      "videoPlaceholder": "Video Player Placeholder",
+      "videoSubtextPlatform": "YouTube video would play here"
     },
     "crops": {
       "addNew": "Add New Crop",

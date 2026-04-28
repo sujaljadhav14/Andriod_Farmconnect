@@ -189,8 +189,8 @@ const FarmerDashboardScreen = ({ navigation }) => {
       screen: 'BankDetails',
     },
     {
-      title: 'Earnings & Payments',
-      description: 'Track receivables, settlements, and legal agreements',
+      title: t('farmer.dashboard.earningsAndPayments'),
+      description: t('farmer.dashboard.earningsDescription'),
       icon: 'account-balance-wallet',
       color: '#00897B',
       screen: 'Payments',
@@ -273,7 +273,7 @@ const FarmerDashboardScreen = ({ navigation }) => {
         >
           <MaterialIcons name="assignment" size={20} color="#E65100" style={{ marginRight: 8 }} />
           <Text style={styles.alertText}>
-            You have {stats.pendingProposals} new proposal{stats.pendingProposals !== 1 ? 's' : ''} to review
+            {`${t('farmer.dashboard.pendingProposalsAlert', { count: stats.pendingProposals })}${stats.pendingProposals !== 1 ? 's' : ''}`}
           </Text>
           <MaterialIcons name="chevron-right" size={20} color="#E65100" />
         </TouchableOpacity>
@@ -295,7 +295,7 @@ const FarmerDashboardScreen = ({ navigation }) => {
 
       {/* Quick Actions */}
       <View style={styles.quickActionsContainer}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <Text style={styles.sectionTitle}>{t('farmer.dashboard.quickActions')}</Text>
         <View style={styles.quickActionsRow}>
           <TouchableOpacity
             style={styles.quickAction}
@@ -304,7 +304,7 @@ const FarmerDashboardScreen = ({ navigation }) => {
             <View style={[styles.quickActionIcon, { backgroundColor: '#2E7D32' + '20' }]}>
               <MaterialIcons name="add" size={22} color="#2E7D32" />
             </View>
-            <Text style={styles.quickActionText}>Add Crop</Text>
+            <Text style={styles.quickActionText}>{t('farmer.dashboard.addCropQuickAction')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -314,7 +314,7 @@ const FarmerDashboardScreen = ({ navigation }) => {
             <View style={[styles.quickActionIcon, { backgroundColor: '#1565C0' + '20' }]}>
               <MaterialIcons name="grass" size={22} color="#1565C0" />
             </View>
-            <Text style={styles.quickActionText}>My Crops</Text>
+            <Text style={styles.quickActionText}>{t('farmer.dashboard.myCropsQuickAction')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -329,7 +329,7 @@ const FarmerDashboardScreen = ({ navigation }) => {
                 </View>
               )}
             </View>
-            <Text style={styles.quickActionText}>Proposals</Text>
+            <Text style={styles.quickActionText}>{t('farmer.dashboard.proposalsQuickAction')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -339,7 +339,7 @@ const FarmerDashboardScreen = ({ navigation }) => {
             <View style={[styles.quickActionIcon, { backgroundColor: '#6A1B9A' + '20' }]}>
               <MaterialIcons name="receipt-long" size={22} color="#6A1B9A" />
             </View>
-            <Text style={styles.quickActionText}>Orders</Text>
+            <Text style={styles.quickActionText}>{t('farmer.dashboard.ordersQuickAction')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -404,8 +404,8 @@ const FarmerDashboardScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
             <View style={styles.videoPlaceholder}>
-              <Text style={styles.videoText}>Video Player Placeholder</Text>
-              <Text style={styles.videoSubtext}>YouTube video would play here</Text>
+              <Text style={styles.videoText}>{t('farmer.dashboard.videoPlaceholder')}</Text>
+              <Text style={styles.videoSubtext}>{t('farmer.dashboard.videoSubtextPlatform')}</Text>
             </View>
             <View style={styles.contactSection}>
               <Text style={styles.contactTitle}>{t('farmer.dashboard.contactUs')}</Text>

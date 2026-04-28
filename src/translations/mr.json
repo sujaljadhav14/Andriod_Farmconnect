@@ -28,7 +28,8 @@
     "filter": "फिल्टर",
     "all": "सर्व",
     "share": "सामायिक करा",
-    "initializing": "सुरू होत आहे..."
+    "initializing": "सुरू होत आहे...",
+    "close": "बंद करा"
   },
   "auth": {
     "phoneNumber": "फोन नंबर",
@@ -125,6 +126,8 @@
       "marketPrices": "बाजार किंमती",
       "marketPricesDescription": "वर्तमान बाजार किंमती पहा",
       "viewPrices": "किंमती पहा",
+      "earningsAndPayments": "कमाई आणि भरणा",
+      "earningsDescription": "प्राप्य, निपटान आणि कायदेशीर करारांचे ट्रॅकिंग करा",
       "kycVerification": "KYC सत्यापन",
       "kycVerificationDescription": "आपले KYC सत्यापन पूर्ण करा",
       "verifyKYC": "KYC सत्यापित करा",
@@ -142,7 +145,15 @@
       "howToUsePlatform": "प्लॅटफॉर्म कसे वापरायचे",
       "contactUs": "आमच्याशी संपर्क साधा",
       "phone": "फोन",
-      "supportHours": "समर्थन वेळ: 9 AM - 6 PM"
+      "supportHours": "समर्थन वेळ: 9 AM - 6 PM",
+      "quickActions": "द्रुत कार्य",
+      "addCropQuickAction": "पीक जोडा",
+      "myCropsQuickAction": "माझी पिके",
+      "proposalsQuickAction": "प्रस्ताव",
+      "ordersQuickAction": "ऑर्डर",
+      "pendingProposalsAlert": "आपल्याकडे {{count}} नवीन प्रस्ताव आहे",
+      "videoPlaceholder": "व्हिडिओ प्लेयर प्लेसहोल्डर",
+      "videoSubtextPlatform": "YouTube व्हिडिओ येथे चालू होईल"
     },
     "crops": {
       "addNew": "नवीन पीक जोडा",
