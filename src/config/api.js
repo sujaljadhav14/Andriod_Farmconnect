@@ -1,22 +1,66 @@
 /**
  * API Configuration
  * Central configuration for API endpoints and URLs
+ *
+ * ✅ DYNAMIC IP RESOLUTION:
+ * In development (Expo Go), the API URL is derived at RUNTIME from the Metro
+ * bundler host using expo-constants. This means you NEVER need to update .env
+ * when your IP changes — it always points to the same machine running Metro.
+ *
+ * In production (standalone build), it falls back to EXPO_PUBLIC_API_BASE_URL.
  */
 
-// Configure this with a single Expo env var using the dev machine LAN IP.
-// Do not use a virtual adapter IP such as VMware/Hyper-V host-only networks.
-// Example: EXPO_PUBLIC_API_BASE_URL=http://192.168.x.x:5001/api
-const RAW_API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || '').trim();
+import Constants from 'expo-constants';
+
+const BACKEND_PORT = 5001;
 
 const normalizeUrl = (url) => url.replace(/\/+$/, '');
 
-const API_FALLBACK_BASE_URL = 'http://192.168.0.100:5001/api';
+/**
+ * Resolves the API base URL dynamically.
+ * In Expo Go (dev), reads the Metro bundler host from Constants and replaces
+ * the port with the backend port. Always stays in sync with the current machine IP.
+ * Falls back to EXPO_PUBLIC_API_BASE_URL for production builds.
+ */
+function resolveApiBaseURL() {
+  if (__DEV__) {
+    try {
+      const debuggerHost =
+        Constants.expoConfig?.hostUri ||                    // Expo SDK 46+
+        Constants.manifest2?.extra?.expoClient?.hostUri ||  // Expo SDK 46 manifest2
+        Constants.manifest?.debuggerHost ||                  // Expo SDK < 46
+        null;
 
-export const API_BASE_URL = normalizeUrl(RAW_API_BASE_URL || API_FALLBACK_BASE_URL);
-export const SOCKET_URL = normalizeUrl(API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL);
+      if (debuggerHost) {
+        // debuggerHost is like "192.168.0.103:8081" — extract just the IP
+        const host = debuggerHost.split(':')[0];
+        const url = `http://${host}:${BACKEND_PORT}/api`;
+        console.log('🌐 [API Config] Dynamic URL from Metro host:', url);
+        return normalizeUrl(url);
+      }
+    } catch (e) {
+      console.warn('⚠️ [API Config] Could not read Metro host from Constants:', e.message);
+    }
+  }
+
+  // Production or fallback: use .env variable
+  const envURL = (process.env.EXPO_PUBLIC_API_BASE_URL || '').trim();
+  if (!envURL) {
+    console.error('❌ [API Config] EXPO_PUBLIC_API_BASE_URL is NOT SET. Check .env in project root.');
+  } else {
+    console.log('🌐 [API Config] Using env URL:', envURL);
+  }
+  return normalizeUrl(envURL);
+}
+
+export const API_BASE_URL = resolveApiBaseURL();
+export const SOCKET_URL = normalizeUrl(
+  API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL
+);
 
 if (__DEV__) {
-  console.log('API_BASE_URL resolved to:', API_BASE_URL);
+  console.log('✅ [API Config] Final API_BASE_URL:', API_BASE_URL);
+  console.log('✅ [API Config] Final SOCKET_URL:', SOCKET_URL);
 }
 
 // API Endpoints
