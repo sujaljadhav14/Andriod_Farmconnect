@@ -1,0 +1,44 @@
+{
+  "project": "FarmConnect AI/ML Future Use Cases",
+  "last_updated": "2026-04-30",
+  "phases": [
+    {
+      "id": "phase_0",
+      "name": "Architecture & Discovery",
+      "tasks": [
+        {"id":"task_0_1","title":"Scaffold branch and folder","status":"completed","check":"future_use_cases/"},
+        {"id":"task_0_2","title":"Add README.md","status":"completed","check":"future_use_cases/README.md"},
+        {"id":"task_0_3","title":"Add skill.skill","status":"completed","check":"future_use_cases/skill.skill"},
+        {"id":"task_0_4","title":"Add ARCHITECTURE.md","status":"completed","check":"future_use_cases/ARCHITECTURE.md"}
+      ]
+    },
+    {
+      "id": "phase_1",
+      "name": "PoC & Tooling",
+      "tasks": [
+        {"id":"task_1_1","title":"Train baseline CV model on public dataset","status":"not-started","check":null},
+        {"id":"task_1_2","title":"Convert model to TFLite","status":"not-started","check":null},
+        {"id":"task_1_3","title":"Prototype backend forecasting endpoint","status":"not-started","check":null},
+        {"id":"task_1_4","title":"UI flow: image capture → inference","status":"not-started","check":null}
+      ]
+    },
+    {
+      "id":"phase_2",
+      "name":"Pilot & Monetization",
+      "tasks":[
+        {"id":"task_2_1","title":"Pilot with 50–100 farmers","status":"not-started","check":null},
+        {"id":"task_2_2","title":"Implement subscription flow","status":"not-started","check":null},
+        {"id":"task_2_3","title":"Integrate lending partners (credit scoring)","status":"not-started","check":null}
+      ]
+    },
+    {
+      "id":"phase_3",
+      "name":"Scale & Production",
+      "tasks":[
+        {"id":"task_3_1","title":"Add provenance ledger integration","status":"not-started","check":null},
+        {"id":"task_3_2","title":"CI for model retraining","status":"not-started","check":null},
+        {"id":"task_3_3","title":"A/B monetization experiments","status":"not-started","check":null}
+      ]
+    }
+  ]
+}
