@@ -1,0 +1,138 @@
+{
+  "skill_id": "farmconnect-ai-ml-future",
+  "version": "1.0.0",
+  "name": "FarmConnect AI/ML Integration Framework",
+  "description": "Structured skill for deploying predictive crop advisor + disease detection + provenance + credit scoring",
+  
+  "components": [
+    {
+      "name": "cv_disease_detection",
+      "type": "tensorflow_lite_model",
+      "description": "On-device leaf disease classification",
+      "input": { "format": "jpg_224x224", "channels": 3 },
+      "output": { "disease_class": "string", "confidence": "float" },
+      "model_source": "transfer_learning_on_plantvillage",
+      "target_device": "android_arm64",
+      "file_size_mb": 8,
+      "inference_latency_ms": 50
+    },
+    {
+      "name": "yield_forecasting",
+      "type": "lstm_timeseries_model",
+      "description": "Predict crop yield based on weather + historical data",
+      "input": { "timeseries_features": 10, "lookback_days": 90 },
+      "output": { "predicted_yield_kg": "float", "confidence_interval": "tuple" },
+      "model_source": "tf_keras_lstm",
+      "training_data": "farmer_transaction_history + weather_api",
+      "retrain_frequency": "monthly"
+    },
+    {
+      "name": "price_forecasting",
+      "type": "arima_prophet_model",
+      "description": "Predict local market prices",
+      "input": { "timeseries": "daily_prices", "lookback_days": 365 },
+      "output": { "predicted_price_usd": "float", "trend": "string" },
+      "model_source": "fbprophet_or_statsmodels",
+      "training_data": "market_api_or_marketplace_transactions",
+      "retrain_frequency": "weekly"
+    },
+    {
+      "name": "provenance_ledger",
+      "type": "optional_blockchain_integration",
+      "description": "Immutable traceability for premium produce",
+      "blockchain_type": "hyperledger_fabric_or_merkle_tree",
+      "data_fields": ["farmer_id", "crop_type", "harvest_date", "quality_score", "buyer_id"],
+      "access_model": "permissioned",
+      "premium_unlock": true
+    },
+    {
+      "name": "credit_scoring",
+      "type": "xgboost_classifier",
+      "description": "Assess lending risk for farmer microloans",
+      "input": {
+        "features": ["transaction_volume", "yield_volatility", "app_engagement", "region_risk"],
+        "count": 8
+      },
+      "output": { "credit_score": "0-1000", "lending_eligible": "bool", "suggested_limit_usd": "float" },
+      "model_source": "xgboost_or_logistic_regression",
+      "training_data": "farmer_profiles + transaction_history + partner_feedback"
+    }
+  ],
+  
+  "data_pipeline": {
+    "inputs": [
+      { "name": "image_upload", "source": "mobile_camera", "format": "jpeg", "frequency": "on_demand" },
+      { "name": "weather_data", "source": "external_api", "frequency": "daily" },
+      { "name": "transaction_data", "source": "app_db", "frequency": "real_time" },
+      { "name": "market_prices", "source": "marketplace_or_external_api", "frequency": "daily" }
+    ],
+    "processing": [
+      { "step": "image_preprocessing", "operation": "resize_224x224_normalize" },
+      { "step": "time_series_aggregation", "operation": "rollup_daily_transactions" },
+      { "step": "feature_engineering", "operation": "compute_seasonality_trends" }
+    ],
+    "outputs": [
+      { "name": "disease_advisory", "destination": "mobile_ui + notifications" },
+      { "name": "yield_forecast", "destination": "farmer_dashboard" },
+      { "name": "price_forecast", "destination": "marketplace_listing" },
+      { "name": "credit_offer", "destination": "lender_partner_api" }
+    ]
+  },
+  
+  "deployment_targets": {
+    "mobile": {
+      "platform": "android",
+      "runtime": "tensorflow_lite",
+      "models": ["cv_disease_detection"],
+      "size_mb": 8
+    },
+    "backend": {
+      "platform": "node_or_python",
+      "runtime": "tf_keras_or_pytorch",
+      "models": ["yield_forecasting", "price_forecasting", "credit_scoring"],
+      "scaling": "auto_with_demand"
+    },
+    "ledger": {
+      "platform": "hyperledger_or_private_blockchain",
+      "deployment": "optional_enterprise"
+    }
+  },
+  
+  "success_metrics": {
+    "cv_model": { "accuracy": 0.92, "precision": 0.90, "recall": 0.90 },
+    "yield_forecast": { "mape": 0.15, "r2": 0.85 },
+    "price_forecast": { "mape": 0.10, "r2": 0.80 },
+    "adoption": { "premium_conversion": 0.12, "arpu_usd": 3.50 },
+    "business": { "marketplace_gmv_growth": 0.25, "lending_volume_usd": 100000 }
+  },
+  
+  "risks_and_mitigations": [
+    {
+      "risk": "Poor CV model accuracy on user images",
+      "mitigation": "Transfer learning + local PoC validation before production"
+    },
+    {
+      "risk": "Privacy concerns with image/data sharing",
+      "mitigation": "On-device inference + encryption + user consent workflows"
+    },
+    {
+      "risk": "High infrastructure costs",
+      "mitigation": "Lightweight models + edge inference + auto-scaling"
+    },
+    {
+      "risk": "Regulatory (credit scoring, blockchain)",
+      "mitigation": "Start advisory-only; engage legal; phased rollout"
+    },
+    {
+      "risk": "Farmer adoption friction",
+      "mitigation": "Pilot with champions; weekly UX feedback"
+    }
+  ],
+  
+  "timeline": {
+    "phase_0_architecture": "now_7days",
+    "phase_1_poc": "weeks_2_4",
+    "phase_2_production": "months_1_3",
+    "phase_3_scale": "months_6_plus"
+  }
+}
